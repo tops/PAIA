@@ -70,6 +70,7 @@ async function runScraperJob() {
     console.log(`[Cloud Run Scraper] Laddar upp uppdaterad fil till gs://${bucketName}/${objectName}...`);
     await bucket.upload(localFilePath, {
       destination: objectName,
+      predefinedAcl: 'publicRead',
       metadata: {
         cacheControl: 'no-cache, no-store, must-revalidate',
         contentType: 'application/json',
