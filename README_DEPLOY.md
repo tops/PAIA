@@ -11,7 +11,7 @@ Projektet använder en **serverlös arkitektur** (serverless) som körs helt ino
 1. **Hemsida (Frontend)**: 
    * Byggd med React, TypeScript och Vite.
    * Driftsatt på **Firebase Hosting** för snabb, global laddningstid (CDN) och gratis SSL (HTTPS).
-   * **Live-URL**: [https://paia-bevakning.web.app](https://paia-bevakning.web.app)
+   * **Live-URL**: [https://paia-2026.web.app](https://paia-2026.web.app)
 
 2. **Claims-databas (Lagring)**:
    * Den genererade JSON-databasen över claims lagras i en offentligt läsbar Google Cloud Storage-bucket (med CORS aktiverat).
