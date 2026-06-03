@@ -1,0 +1,342 @@
+import { useState, useEffect } from 'react';
+import { useLocalStorage } from './hooks/useLocalStorage';
+import type { ClaimCard, PartyAffiliation, UserStance } from './types';
+import { Dashboard } from './components/Dashboard';
+import { DatabaseView } from './components/DatabaseView';
+import { AiAssistant } from './components/AiAssistant';
+import { PartyProfiles } from './components/PartyProfiles';
+import { AiCompass } from './components/AiCompass';
+import { TransparencyView } from './components/TransparencyView';
+import { 
+  LayoutDashboard, Database, Sparkles, UserCheck, 
+  Calendar, CheckSquare, Compass, BookOpen
+} from 'lucide-react';
+import './App.css';
+
+function App() {
+  const [activeTab, setActiveTab] = useState<string>('dashboard');
+  const [selectedParty, setSelectedParty] = useState<PartyAffiliation>('S');
+  const [editingClaim, setEditingClaim] = useState<ClaimCard | null>(null);
+
+  // Integrate persistent Local Storage with mock claims fallback
+  const [claims, setClaims] = useLocalStorage<ClaimCard[]>('ai_political_claims_v3', []);
+  const [initialClaimsFromServer, setInitialClaimsFromServer] = useState<ClaimCard[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [userStance, setUserStance] = useLocalStorage<UserStance | null>('ai_political_user_stance', null);
+
+  // Dynamic date and election countdown calculation
+  const today = new Date();
+  const swedishDate = new Intl.DateTimeFormat('sv-SE', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  }).format(today);
+
+  const electionDate = new Date('2026-09-13T00:00:00');
+  const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const diffDays = Math.ceil((electionDate.getTime() - todayMidnight.getTime()) / (1000 * 60 * 60 * 24));
+  const daysLeftText = diffDays > 0 
+    ? `Riksdagsval: ${diffDays} dagar kvar` 
+    : diffDays === 0 
+      ? 'Riksdagsval: Idag!' 
+      : 'Riksdagsval: Genomfört';
+
+  // Automatic migration: If the database is missing any of the standard claims, contains mock claims, or is old, upgrade/merge it!
+  useEffect(() => {
+    async function fetchClaims() {
+      try {
+        const res = await fetch('https://storage.googleapis.com/pai-claims-data-2026/imported_claims.json');
+        if (!res.ok) {
+          throw new Error('Misslyckades att hämta claims-databasen från servern.');
+        }
+        const data = await res.json() as ClaimCard[];
+        setInitialClaimsFromServer(data);
+        
+        setClaims(prevClaims => {
+          const currentClaims = prevClaims || [];
+          
+          // If local storage is empty, initialize with fetched claims
+          if (currentClaims.length === 0) {
+            return data;
+          }
+          
+          let updated = [...currentClaims];
+          
+          // 1. Automatically remove only the 15 original mock claims (claim-1 to claim-15)
+          const isMockClaimId = (id: string) => /^claim-(?:[1-9]|1[0-5])$/.test(id);
+          const hasMockClaims = updated.some(c => isMockClaimId(c.id));
+          if (hasMockClaims) {
+            updated = updated.filter(c => !isMockClaimId(c.id));
+          }
+
+          // 2. Sync/merge standard claims if the size is smaller than the fetched package
+          if (updated.length < data.length) {
+            const initialIds = new Set(data.map(c => c.id));
+            const hasCustomClaims = updated.some(c => !initialIds.has(c.id));
+            if (!hasCustomClaims) {
+              return data;
+            } else {
+              const prevIds = new Set(updated.map(c => c.id));
+              const missing = data.filter(c => !prevIds.has(c.id));
+              if (missing.length > 0) {
+                updated = [...updated, ...missing];
+              }
+            }
+          }
+
+          // 3. Auto-update generic "Riksdagsledamot" actor names to real names
+          const hasGenericClaims = updated.some(c => c.id.startsWith('riksdagen-') && c.actor === 'Riksdagsledamot');
+          const initialHasGeneric = data.some(c => c.id.startsWith('riksdagen-') && c.actor === 'Riksdagsledamot');
+          if (hasGenericClaims && !initialHasGeneric) {
+            const initialMap = new Map(data.map(c => [c.id, c]));
+            updated = updated.map(c => {
+              if (c.id.startsWith('riksdagen-') && c.actor === 'Riksdagsledamot') {
+                const fresh = initialMap.get(c.id);
+                if (fresh && fresh.actor !== 'Riksdagsledamot') {
+                  return {
+                    ...c,
+                    actor: fresh.actor,
+                    actorType: fresh.actorType,
+                    partyAffiliation: fresh.partyAffiliation,
+                    neutralSummary: c.neutralSummary.replace('Riksdagsledamot', fresh.actor)
+                  };
+                }
+              }
+              return c;
+            });
+          }
+
+          // 4. Clean up any leftover 'Externt' partyAffiliations
+          const hasMisplacedExternal = updated.some(c => c.id.startsWith('riksdagen-') && c.partyAffiliation === 'Externt' && data.find(ic => ic.id === c.id)?.partyAffiliation !== 'Externt');
+          if (hasMisplacedExternal) {
+            const initialMap = new Map(data.map(c => [c.id, c]));
+            updated = updated.map(c => {
+              if (c.id.startsWith('riksdagen-') && c.partyAffiliation === 'Externt') {
+                const fresh = initialMap.get(c.id);
+                if (fresh && fresh.partyAffiliation !== 'Externt') {
+                  return {
+                    ...c,
+                    partyAffiliation: fresh.partyAffiliation
+                  };
+                }
+              }
+              return c;
+            });
+          }
+
+          // 5. Auto-update generic "Riksdagsutskottet" actor names
+          const hasGenericUtskott = updated.some(c => c.id.startsWith('riksdagen-') && c.actor === 'Riksdagsutskottet');
+          const initialHasGenericUtskott = data.some(c => c.id.startsWith('riksdagen-') && c.actor === 'Riksdagsutskottet');
+          if (hasGenericUtskott && !initialHasGenericUtskott) {
+            const initialMap = new Map(data.map(c => [c.id, c]));
+            updated = updated.map(c => {
+              if (c.id.startsWith('riksdagen-') && c.actor === 'Riksdagsutskottet') {
+                const fresh = initialMap.get(c.id);
+                if (fresh && fresh.actor !== 'Riksdagsutskottet') {
+                  return {
+                    ...c,
+                    actor: fresh.actor,
+                    actorType: fresh.actorType,
+                    neutralSummary: c.neutralSummary
+                      .replace('Riksdagsutskottet', fresh.actor)
+                      .replace('riksdagsutskottet', fresh.actor)
+                  };
+                }
+              }
+              return c;
+            });
+          }
+
+          return updated;
+        });
+      } catch (err) {
+        console.error("Kunde inte hämta claims från servern:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    fetchClaims();
+  }, [setClaims]);
+
+  // Save or edit a claim
+  const handleSaveClaim = (updatedClaim: ClaimCard) => {
+    setClaims(prevClaims => {
+      const exists = prevClaims.some(c => c.id === updatedClaim.id);
+      if (exists) {
+        // Edit existing
+        return prevClaims.map(c => c.id === updatedClaim.id ? updatedClaim : c);
+      } else {
+        // Add new
+        return [updatedClaim, ...prevClaims];
+      }
+    });
+    setEditingClaim(null);
+  };
+
+  // Delete a claim
+  const handleDeleteClaim = (id: string) => {
+    setClaims(prevClaims => prevClaims.filter(c => c.id !== id));
+  };
+
+  // Import claims list (overwrites or merges)
+  const handleImportClaims = (imported: ClaimCard[]) => {
+    setClaims(imported);
+  };
+
+  const handleEditClaimTrigger = (claim: ClaimCard) => {
+    setEditingClaim(claim);
+  };
+
+  return (
+    <div className="app-container">
+      {/* Premium Sidebar Navigation */}
+      <aside className="sidebar">
+        {/* Logo Section */}
+        <div className="sidebar-logo-section">
+          <div className="sidebar-logo">
+            <span className="sidebar-logo-indicator ai-glow"></span>
+            AI-Politik v3
+          </div>
+          <div className="sidebar-subtitle">
+            Positionsbevakning
+          </div>
+        </div>
+
+        {/* Navigation Menu */}
+        <nav className="nav-menu">
+          <button 
+            onClick={() => setActiveTab('dashboard')} 
+            className={`nav-item ${activeTab === 'dashboard' ? 'active' : ''}`}
+          >
+            <LayoutDashboard size={18} />
+            Dashboard
+          </button>
+          
+          <button 
+            onClick={() => setActiveTab('databas')} 
+            className={`nav-item ${activeTab === 'databas' ? 'active' : ''}`}
+          >
+            <Database size={18} />
+            Claims-Databas
+          </button>
+
+          <button 
+            onClick={() => {
+              setEditingClaim(null); // Reset to empty form
+              setActiveTab('assistent');
+            }} 
+            className={`nav-item ${activeTab === 'assistent' ? 'active' : ''}`}
+          >
+            <Sparkles size={18} />
+            AI-assistent & Editor
+          </button>
+
+          <button 
+            onClick={() => setActiveTab('profiler')} 
+            className={`nav-item ${activeTab === 'profiler' ? 'active' : ''}`}
+          >
+            <UserCheck size={18} />
+            Partiprofiler
+          </button>
+
+          <button 
+            onClick={() => setActiveTab('kompassen')} 
+            className={`nav-item ${activeTab === 'kompassen' ? 'active' : ''}`}
+          >
+            <Compass size={18} />
+            AI-kompassen
+          </button>
+
+          <button 
+            onClick={() => setActiveTab('metod')} 
+            className={`nav-item ${activeTab === 'metod' ? 'active' : ''}`}
+          >
+            <BookOpen size={18} />
+            Metod & Transparens
+          </button>
+        </nav>
+
+        {/* Footer date & election details */}
+        <div className="sidebar-footer">
+          <div className="sidebar-footer-item">
+            <Calendar size={14} className="party-SD" style={{ backgroundColor: 'transparent' }} />
+            {swedishDate}
+          </div>
+          <div className="sidebar-footer-item">
+            <CheckSquare size={14} className="party-S" style={{ backgroundColor: 'transparent' }} />
+            {daysLeftText}
+          </div>
+          <div className="sidebar-footer-sub">
+            AI-politisk positions- och agendabevakning inför valet 2026.
+          </div>
+        </div>
+      </aside>
+
+      {/* Main Content Area */}
+      <main className="main-content">
+        {isLoading && claims.length === 0 ? (
+          <div className="loading-container">
+            <div className="loading-spinner"></div>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 500 }}>Laddar in claims-databasen...</p>
+          </div>
+        ) : (
+          <>
+            {activeTab === 'dashboard' && (
+              <Dashboard 
+                claims={claims} 
+                onSelectParty={setSelectedParty}
+                onNavigate={setActiveTab}
+                onEditClaim={handleEditClaimTrigger}
+                userStance={userStance}
+              />
+            )}
+
+            {activeTab === 'databas' && (
+              <DatabaseView 
+                claims={claims} 
+                initialClaims={initialClaimsFromServer}
+                onEditClaim={handleEditClaimTrigger} 
+                onDeleteClaim={handleDeleteClaim}
+                onImportClaims={handleImportClaims}
+                onNavigate={setActiveTab}
+              />
+            )}
+
+            {activeTab === 'assistent' && (
+              <AiAssistant 
+                key={editingClaim ? editingClaim.id : 'new-claim'}
+                editingClaim={editingClaim} 
+                onSaveClaim={handleSaveClaim}
+                onCancelEdit={() => setEditingClaim(null)}
+                onNavigate={setActiveTab}
+              />
+            )}
+
+            {activeTab === 'profiler' && (
+              <PartyProfiles 
+                claims={claims} 
+                selectedParty={selectedParty}
+                onSelectParty={setSelectedParty}
+              />
+            )}
+
+            {activeTab === 'kompassen' && (
+              <AiCompass 
+                userStance={userStance}
+                onUpdateStance={setUserStance}
+                claims={claims}
+                onNavigate={setActiveTab}
+              />
+            )}
+
+            {activeTab === 'metod' && (
+              <TransparencyView />
+            )}
+          </>
+        )}
+      </main>
+    </div>
+  );
+}
+
+export default App;
