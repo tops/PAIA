@@ -1,5 +1,6 @@
 {
   "hosting": {
+    "site": "paia-bevakning",
     "public": "dist",
     "ignore": [
       "firebase.json",
