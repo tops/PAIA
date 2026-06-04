@@ -689,7 +689,7 @@ export const PartyProfiles: React.FC<PartyProfilesProps> = ({
                 Inga bidragande ställningstaganden registrerade för närvarande.
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto party-claims-table-container">
                 <table className="gap-table">
                   <thead>
                     <tr>

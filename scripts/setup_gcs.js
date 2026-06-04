@@ -70,7 +70,8 @@ async function main() {
       });
       console.log(' -> Bucket skapad framgångsrikt!');
     } catch (err) {
-      if (err.message.includes('You already own this bucket') || err.message.includes('Conflict')) {
+      const errMsg = err.message.toLowerCase();
+      if (errMsg.includes('already own') || errMsg.includes('conflict')) {
         console.log(' -> Bucketen finns redan (eller ägs redan av dig). Fortsätter...');
       } else {
         throw err;
@@ -100,6 +101,14 @@ async function main() {
       'Content-Type': 'application/json'
     });
     console.log(' -> Startfil uppladdad.');
+
+    // 3.5 Sätt metadata för att förhindra cachelagring
+    console.log('3.5 Sätter Cache-Control på filen...');
+    const metaUrl = `https://storage.googleapis.com/storage/v1/b/${bucketName}/o/imported_claims.json`;
+    await apiRequest(metaUrl, 'PATCH', {
+      cacheControl: 'no-cache, no-store, must-revalidate'
+    });
+    console.log(' -> Cache-Control satt till no-cache, no-store, must-revalidate.');
 
     // 4. Gör filen offentligt läsbar (allUsers: READER)
     console.log('4. Konfigurerar filen som offentligt läsbar (allUsers -> READER)...');

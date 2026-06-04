@@ -59,6 +59,11 @@
   background: rgba(0, 0, 0, 0.16);
 }
 
+html, body {
+  overflow-x: hidden;
+  max-width: 100%;
+}
+
 body {
   background-color: var(--bg-main);
   color: var(--text-primary);
@@ -66,7 +71,6 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   min-height: 100vh;
-  overflow-x: hidden;
   background-image: 
     radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.02) 0px, transparent 50%),
     radial-gradient(at 100% 100%, rgba(16, 185, 129, 0.02) 0px, transparent 50%),
@@ -265,6 +269,8 @@ p {
 .app-container {
   display: flex;
   min-height: 100vh;
+  overflow-x: hidden;
+  max-width: 100%;
 }
 
 .sidebar {
@@ -278,6 +284,7 @@ p {
   height: 100vh;
   z-index: 10;
   box-shadow: 1px 0 0 var(--border-color), 8px 0 30px -10px rgba(15, 23, 42, 0.04);
+  overflow-y: auto;
 }
 
 .sidebar-logo-section {
@@ -1893,5 +1900,386 @@ textarea.form-control {
   border: 1px dashed var(--border-color);
 }
 
+/* ======================================================== */
+/* MOBILE RESPONSIVENESS AND LAYOUT ADJUSTMENTS             */
+/* ======================================================== */
 
+/* Keyframe for sidebar backdrop fade-in */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
 
+/* Default state for mobile header (hidden on desktop) */
+.mobile-header {
+  display: none;
+}
+
+/* Sidebar toggle backdrop (hidden by default) */
+.sidebar-backdrop {
+  display: none;
+}
+
+@media (max-width: 1024px) {
+  /* Layout adjustments */
+  .app-container {
+    flex-direction: column;
+    min-height: 100vh;
+  }
+
+  /* Show mobile header */
+  .mobile-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 20px;
+    background-color: var(--bg-sidebar);
+    border-bottom: 1px solid var(--border-color);
+    position: sticky;
+    top: 0;
+    z-index: 99;
+    box-shadow: 0 2px 10px rgba(15, 23, 42, 0.03);
+  }
+
+  .mobile-menu-toggle {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
+    border-radius: 10px;
+    transition: background-color 0.2s;
+  }
+
+  .mobile-menu-toggle:hover {
+    background-color: rgba(15, 23, 42, 0.05);
+  }
+
+  .mobile-logo {
+    font-family: var(--font-heading);
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* Transition sidebar to mobile drawer style */
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    width: 280px;
+    z-index: 1000;
+    transform: translateX(-100%);
+    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: none;
+    border-right: 1px solid var(--border-color);
+  }
+
+  .sidebar.open {
+    transform: translateX(0);
+    box-shadow: 8px 0 30px -10px rgba(15, 23, 42, 0.15);
+  }
+
+  /* Sidebar backdrop overlay on mobile */
+  .sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.3);
+    backdrop-filter: blur(4px);
+    z-index: 999;
+    animation: fadeIn 0.2s ease-out;
+  }
+
+  /* Main content adjusts to full width and smaller gaps */
+  .main-content {
+    margin-left: 0;
+    width: 100%;
+    padding: 24px 16px;
+    gap: 28px;
+  }
+
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    padding-bottom: 16px;
+  }
+
+  /* Party Profile Grid collapses to 1 column */
+  .profile-grid {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+}
+
+@media (max-width: 968px) {
+  /* Dimension Explorer Navigation transformed into a horizontal scrolling swipeable row */
+  .dimension-explorer-layout {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  .dimension-sidebar-nav {
+    position: relative;
+    top: 0;
+    max-height: none;
+    padding: 12px;
+    border-radius: 16px;
+    gap: 8px;
+    box-shadow: var(--shadow-main);
+  }
+
+  .dimension-sidebar-header {
+    display: none; /* Hide vertical-only header to save space */
+  }
+
+  .dimension-sidebar-list {
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-bottom: 6px;
+    gap: 8px;
+    scrollbar-width: none; /* Firefox */
+  }
+
+  .dimension-sidebar-list::-webkit-scrollbar {
+    display: none; /* Webkit browsers */
+  }
+
+  .dimension-nav-button {
+    width: auto;
+    flex-shrink: 0;
+    padding: 8px 14px;
+    border: 1px solid var(--border-color);
+  }
+
+  .dimension-nav-name {
+    font-size: 0.8rem;
+    white-space: nowrap;
+    overflow: visible;
+    text-overflow: clip;
+  }
+}
+
+@media (max-width: 640px) {
+  /* Scale down spacing globally for compact mobile views */
+  .p-8 { padding: 16px !important; }
+  .p-6 { padding: 16px !important; }
+  .p-5 { padding: 16px !important; }
+  .p-4 { padding: 12px !important; }
+  .p-3 { padding: 10px !important; }
+
+  /* Page title sizing */
+  .page-title {
+    font-size: 1.6rem;
+  }
+
+  .page-subtitle {
+    font-size: 0.85rem;
+    line-height: 1.5;
+  }
+
+  /* Grid padding adjustments */
+  .stats-row {
+    gap: 16px;
+  }
+
+  .stats-card {
+    padding: 16px 20px;
+    gap: 16px;
+  }
+
+  .stats-card-value {
+    font-size: 1.6rem;
+  }
+
+  /* Compact Party Profiles statistics */
+  .profile-stats-card {
+    padding: 12px 6px;
+  }
+
+  .profile-stats-val {
+    font-size: 1.4rem;
+  }
+
+  /* Claim card compact padding */
+  .claim-card {
+    padding: 16px;
+  }
+
+  .claim-card-meta {
+    gap: 16px;
+    padding: 16px 0;
+    grid-template-columns: 1fr; /* Force 1 column on tiny screens */
+  }
+
+  .claim-card-quote {
+    padding: 12px 16px;
+    font-size: 0.88rem;
+    margin: 12px 0;
+  }
+
+  /* Filter grid adjustments */
+  .filter-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .filter-grid > div {
+    grid-column: span 1 !important;
+  }
+
+  /* Compass option button adjustments */
+  .compass-option-btn {
+    padding: 14px 18px;
+    gap: 12px;
+    border-radius: 12px;
+  }
+
+  .compass-grid {
+    gap: 12px;
+  }
+}
+
+/* Sidebar close button inside logo section on mobile */
+.mobile-sidebar-close {
+  display: none;
+}
+
+@media (max-width: 1024px) {
+  .mobile-sidebar-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    top: 0px;
+    right: 0px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-muted);
+    padding: 8px;
+    border-radius: 50%;
+    transition: background-color 0.2s;
+  }
+  .mobile-sidebar-close:hover {
+    background-color: rgba(15, 23, 42, 0.05);
+    color: var(--text-primary);
+  }
+}
+
+/* Horizontal scrolling tabs wrapper on mobile devices */
+@media (max-width: 768px) {
+  .tabs-container {
+    gap: 16px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    white-space: nowrap;
+    scrollbar-width: none;
+    margin-bottom: 20px;
+    padding-bottom: 2px;
+  }
+  .tabs-container::-webkit-scrollbar {
+    display: none;
+  }
+  .tab-btn {
+    padding: 12px 4px;
+    font-size: 0.9rem;
+    flex-shrink: 0;
+  }
+
+  /* Custom mobile card layout for claims table in Party Profiles */
+  .party-claims-table-container .gap-table,
+  .party-claims-table-container .gap-table thead,
+  .party-claims-table-container .gap-table tbody,
+  .party-claims-table-container .gap-table tr,
+  .party-claims-table-container .gap-table th,
+  .party-claims-table-container .gap-table td {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  
+  .party-claims-table-container .gap-table thead {
+    display: none;
+  }
+  
+  .party-claims-table-container .gap-table tr {
+    margin-bottom: 20px;
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    padding: 16px;
+    background: var(--bg-card);
+    box-shadow: var(--shadow-main);
+  }
+  
+  .party-claims-table-container .gap-table-td {
+    padding: 8px 0 !important;
+    border-bottom: none;
+    text-align: left !important;
+  }
+  
+  .party-claims-table-container .gap-table-td:first-child {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px dashed var(--border-color);
+    padding-bottom: 12px !important;
+    margin-bottom: 8px;
+  }
+  
+  .party-claims-table-container .gap-table-td:nth-child(2) {
+    font-size: 0.9rem;
+    font-weight: 700;
+  }
+  
+  .party-claims-table-container .gap-table-td.truncate {
+    max-width: none !important;
+    white-space: normal !important;
+    font-style: italic;
+    color: var(--text-primary);
+    padding: 12px 14px !important;
+    background: rgba(15, 23, 42, 0.02);
+    border-left: 3px solid var(--border-color);
+    border-radius: 8px;
+    margin: 8px 0;
+  }
+  
+  .party-claims-table-container .gap-table-td:nth-child(4):before {
+    content: "Policygrad: ";
+    font-weight: 700;
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    text-transform: uppercase;
+  }
+  .party-claims-table-container .gap-table-td:nth-child(5):before {
+    content: "Bäring: ";
+    font-weight: 700;
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    text-transform: uppercase;
+  }
+  .party-claims-table-container .gap-table-td:nth-child(6) {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 1px dashed var(--border-color);
+    padding-top: 12px !important;
+    margin-top: 8px;
+  }
+  .party-claims-table-container .gap-table-td:nth-child(6):before {
+    content: "Claimvikt: ";
+    font-weight: 700;
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    text-transform: uppercase;
+  }
+}

@@ -11,7 +11,8 @@ import { FeedbackAdminView } from './components/FeedbackAdminView';
 import { DimensionExplorer } from './components/DimensionExplorer';
 import { 
   LayoutDashboard, Database, UserCheck, 
-  Calendar, CheckSquare, Compass, BookOpen, ShieldAlert, Key, Lock, Layers
+  Calendar, CheckSquare, Compass, BookOpen, ShieldAlert, Key, Lock, Layers,
+  Menu, X
 } from 'lucide-react';
 import './App.css';
 
@@ -19,6 +20,12 @@ function App() {
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [selectedParty, setSelectedParty] = useState<PartyAffiliation>('S');
   const [editingClaim, setEditingClaim] = useState<ClaimCard | null>(null);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
+
+  const navigateTo = (tab: string) => {
+    setActiveTab(tab);
+    setIsMobileMenuOpen(false);
+  };
 
   // Administrative view state
   const [isAdminMode, setIsAdminMode] = useState<boolean>(false);
@@ -154,6 +161,29 @@ function App() {
             });
           }
 
+          // 6. Auto-update incorrect historical government attributions (before Oct 18, 2022)
+          const hasHistoricalGovClaims = updated.some(c => c.id.startsWith('riksdagen-') && c.actor === 'Regeringen Kristersson' && c.date < '2022-10-18');
+          if (hasHistoricalGovClaims) {
+            const initialMap = new Map(data.map(c => [c.id, c]));
+            updated = updated.map(c => {
+              const fresh = initialMap.get(c.id);
+              if (fresh && fresh.actorType === 'Regering' && fresh.date < '2022-10-18') {
+                if (c.actor === 'Regeringen Kristersson' || c.partyAffiliation === 'M') {
+                  return {
+                    ...c,
+                    actor: fresh.actor,
+                    partyAffiliation: fresh.partyAffiliation,
+                    accelerationContribution: fresh.accelerationContribution,
+                    protectionContribution: fresh.protectionContribution,
+                    stateGovernanceContribution: fresh.stateGovernanceContribution,
+                    neutralSummary: fresh.neutralSummary
+                  };
+                }
+              }
+              return c;
+            });
+          }
+
           return updated;
         });
       } catch (err) {
@@ -197,10 +227,42 @@ function App() {
 
   return (
     <div className="app-container">
+      {/* Mobile Header */}
+      <header className="mobile-header">
+        <button 
+          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} 
+          className="mobile-menu-toggle"
+          aria-label="Meny"
+        >
+          {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+        </button>
+        <div className="mobile-logo">
+          <span className="sidebar-logo-indicator ai-glow"></span>
+          Politisk AI-analys
+        </div>
+        <div style={{ width: 40 }}></div> {/* Spacer to center the logo text */}
+      </header>
+
+      {/* Sidebar Overlay Backdrop */}
+      {isMobileMenuOpen && (
+        <div 
+          className="sidebar-backdrop" 
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
+
       {/* Premium Sidebar Navigation */}
-      <aside className="sidebar">
+      <aside className={`sidebar ${isMobileMenuOpen ? 'open' : ''}`}>
         {/* Logo Section */}
-        <div className="sidebar-logo-section">
+        <div className="sidebar-logo-section" style={{ position: 'relative' }}>
+          <button 
+            type="button"
+            onClick={() => setIsMobileMenuOpen(false)}
+            className="mobile-sidebar-close"
+            aria-label="Stäng meny"
+          >
+            <X size={20} />
+          </button>
           <div className="sidebar-logo">
             <span className="sidebar-logo-indicator ai-glow"></span>
             Politisk AI-analys
@@ -213,7 +275,7 @@ function App() {
         {/* Navigation Menu */}
         <nav className="nav-menu">
           <button 
-            onClick={() => setActiveTab('dashboard')} 
+            onClick={() => navigateTo('dashboard')} 
             className={`nav-item ${activeTab === 'dashboard' ? 'active' : ''}`}
           >
             <LayoutDashboard size={18} />
@@ -221,7 +283,7 @@ function App() {
           </button>
 
           <button 
-            onClick={() => setActiveTab('kompassen')} 
+            onClick={() => navigateTo('kompassen')} 
             className={`nav-item ${activeTab === 'kompassen' ? 'active' : ''}`}
           >
             <Compass size={18} />
@@ -229,7 +291,7 @@ function App() {
           </button>
 
           <button 
-            onClick={() => setActiveTab('dimensioner')} 
+            onClick={() => navigateTo('dimensioner')} 
             className={`nav-item ${activeTab === 'dimensioner' ? 'active' : ''}`}
           >
             <Layers size={18} />
@@ -237,7 +299,7 @@ function App() {
           </button>
 
           <button 
-            onClick={() => setActiveTab('profiler')} 
+            onClick={() => navigateTo('profiler')} 
             className={`nav-item ${activeTab === 'profiler' ? 'active' : ''}`}
           >
             <UserCheck size={18} />
@@ -245,7 +307,7 @@ function App() {
           </button>
           
           <button 
-            onClick={() => setActiveTab('databas')} 
+            onClick={() => navigateTo('databas')} 
             className={`nav-item ${activeTab === 'databas' ? 'active' : ''}`}
           >
             <Database size={18} />
@@ -253,7 +315,7 @@ function App() {
           </button>
 
           <button 
-            onClick={() => setActiveTab('metod')} 
+            onClick={() => navigateTo('metod')} 
             className={`nav-item ${activeTab === 'metod' ? 'active' : ''}`}
           >
             <BookOpen size={18} />
@@ -262,7 +324,7 @@ function App() {
 
           {isAdminMode && (
             <button 
-              onClick={() => setActiveTab('admin')} 
+              onClick={() => navigateTo('admin')} 
               className={`nav-item ${activeTab === 'admin' ? 'active' : ''}`}
               style={{ 
                 color: activeTab === 'admin' ? 'var(--accent-purple)' : 'var(--text-secondary)',
@@ -296,7 +358,8 @@ function App() {
                 type="button"
                 onClick={() => {
                   setIsAdminMode(false);
-                  if (activeTab === 'admin') setActiveTab('dashboard');
+                  if (activeTab === 'admin') navigateTo('dashboard');
+                  else setIsMobileMenuOpen(false);
                 }}
                 className="btn btn-secondary flex items-center gap-2"
                 style={{ padding: '8px 12px', width: '100%', fontSize: '0.72rem', borderRadius: '8px', color: 'var(--accent-coral)', minHeight: 'auto' }}
@@ -306,7 +369,10 @@ function App() {
             ) : (
               <button 
                 type="button"
-                onClick={() => setShowAdminLogin(true)}
+                onClick={() => {
+                  setShowAdminLogin(true);
+                  setIsMobileMenuOpen(false);
+                }}
                 className="flex items-center gap-2"
                 style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.72rem', color: 'var(--text-dim)', fontWeight: 600, padding: 0 }}
               >
@@ -330,7 +396,7 @@ function App() {
               <Dashboard 
                 claims={claims} 
                 onSelectParty={setSelectedParty}
-                onNavigate={setActiveTab}
+                onNavigate={navigateTo}
                 onEditClaim={isAdminMode ? handleEditClaimTrigger : undefined}
                 userStance={userStance}
               />
@@ -343,7 +409,7 @@ function App() {
                 onEditClaim={handleEditClaimTrigger} 
                 onDeleteClaim={handleDeleteClaim}
                 onImportClaims={handleImportClaims}
-                onNavigate={setActiveTab}
+                onNavigate={navigateTo}
                 isAdminMode={isAdminMode}
               />
             )}
@@ -361,7 +427,7 @@ function App() {
                 userStance={userStance}
                 onUpdateStance={setUserStance}
                 claims={claims}
-                onNavigate={setActiveTab}
+                onNavigate={navigateTo}
               />
             )}
 
@@ -370,7 +436,7 @@ function App() {
                 userStance={userStance}
                 onUpdateStance={setUserStance}
                 claims={claims}
-                onNavigate={setActiveTab}
+                onNavigate={navigateTo}
               />
             )}
 
@@ -379,7 +445,7 @@ function App() {
                 editingClaim={editingClaim}
                 onSaveClaim={handleSaveClaim}
                 onCancelEdit={() => setEditingClaim(null)}
-                onNavigate={setActiveTab}
+                onNavigate={navigateTo}
                 isAdminMode={isAdminMode}
               />
             )}

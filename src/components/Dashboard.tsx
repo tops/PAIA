@@ -145,9 +145,54 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
   const getTopActors = (claims: ClaimCard[], limit = 5) => {
     const actorMap = new Map<string, { party: string; count: number; totalEvidence: number }>();
+    
+    // Exclude known party names and institution designations
+    const institutionNames = new Set([
+      'socialdemokraterna',
+      'moderaterna',
+      'sverigedemokraterna',
+      'centerpartiet',
+      'vänsterpartiet',
+      'liberalerna',
+      'kristdemokraterna',
+      'miljöpartiet',
+      'miljöpartiet de gröna',
+      'kristdemokraterna i riksdagen',
+      'vänsterpartiet i riksdagen',
+      'sverigedemokraterna i riksdagen'
+    ]);
+
     claims.forEach(c => {
       if (!c.actor) return;
-      const key = c.actor.trim();
+      
+      // Normalize name: strip trailing party suffix in parentheses like "Daniel Helldén (MP)" or "Ebba Busch (KD)"
+      let key = c.actor.trim();
+      key = key.replace(/\s*\([A-ZÅÄÖa-zåäö\s]+\)\s*$/, '');
+      const actorLower = key.toLowerCase();
+      
+      // Exclude non-politicians / external actors
+      if (c.partyAffiliation === 'Externt') return;
+      
+      // Exclude actor types representing institutions rather than individuals
+      if (['Regering', 'Myndighet', 'Intresseorganisation', 'Civilsamhälle', 'Expert/forskare', 'Fackförbund', 'Riksdagsutskott'].includes(c.actorType)) {
+        return;
+      }
+      
+      // Exclude group authors/motions with multiple authors (e.g. "Gudrun Nordborg m.fl.")
+      if (actorLower.includes('m.fl.') || actorLower.includes('m. fl.')) return;
+      
+      // Exclude government references
+      if (actorLower.startsWith('regeringen')) return;
+      
+      // Exclude party institutions by name match
+      if (institutionNames.has(actorLower)) return;
+      
+      // Exclude i riksdagen suffixes
+      if (actorLower.includes('i riksdagen')) return;
+      
+      // Exclude generic placeholders
+      if (actorLower === 'riksdagsledamot' || actorLower === 'riksdagsutskottet') return;
+
       if (!actorMap.has(key)) {
         actorMap.set(key, { 
           party: c.partyAffiliation, 
@@ -392,7 +437,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
             <div className="stats-card-value">
               {getTopActors(claims, 1000).length} st
             </div>
-            <div className="stats-card-label">Aktiva politiker & experter</div>
+            <div className="stats-card-label">Aktiva politiker</div>
           </div>
         </div>
       </div>
@@ -878,7 +923,6 @@ export const Dashboard: React.FC<DashboardProps> = ({
               >
                 <PartyLogo party={p.party} size={14} />
                 <span style={{ fontWeight: 700 }}>{p.party}</span>
-                <span style={{ fontSize: '0.72rem', opacity: 0.6 }}>({p.status})</span>
               </button>
             ))}
           </div>
@@ -938,17 +982,16 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
           {/* Quick guidelines */}
           <div className="border-t border-[var(--border-color)] pt-4 mt-auto">
-            <h4 style={{ fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '10px' }}>Så här fungerar granskningen</h4>
-            <div className="flex gap-3 text-[10px]" style={{ color: 'var(--text-secondary)' }}>
-              <div className="flex-grow p-3 bg-[var(--bg-main)] rounded-lg border border-[var(--border-color)]">
-                <div style={{ fontWeight: 700, color: 'var(--text-primary)', marginBottom: '4px' }}>1. Datainsamling</div>
-                Vi hämtar löpande officiella dokument från Riksdagens API och partiers hemsidor.
-              </div>
-              <div className="flex-grow p-3 bg-[var(--bg-main)] rounded-lg border border-[var(--border-color)]">
-                <div style={{ fontWeight: 700, color: 'var(--text-primary)', marginBottom: '4px' }}>2. Kvalitetssäkring</div>
-                Varje uttalande granskas och poängsätts av våra analytiker för att ge en rättvisande bild.
-              </div>
-            </div>
+            <h4 style={{ fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '8px' }}>Så här fungerar granskningen</h4>
+            <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: 0, lineHeight: '1.4' }}>
+              Vi samlar löpande in riksdagsdata och officiella utspel, som sedan struktureras och kvalitetssäkras av vår AI.
+              <span 
+                onClick={() => onNavigate('metod')} 
+                style={{ color: 'var(--accent-teal)', cursor: 'pointer', textDecoration: 'underline', fontWeight: 700, marginLeft: '4px' }}
+              >
+                Läs mer om metod och transparens &rarr;
+              </span>
+            </p>
           </div>
         </div>
       </div>
@@ -1121,22 +1164,6 @@ export const Dashboard: React.FC<DashboardProps> = ({
                         <span style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.88rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
                           <PartyLogo party={p.party} size={16} />
                           {partyNames[p.party]}
-                        </span>
-                        
-                        {/* Party Stance Status */}
-                        <span 
-                          className="badge" 
-                          style={{ 
-                            backgroundColor: `${pColor}15`, 
-                            color: pColor, 
-                            border: `1px solid ${pColor}30`,
-                            padding: '2px 8px',
-                            borderRadius: '6px',
-                            fontSize: '0.68rem',
-                            fontWeight: 800
-                          }}
-                        >
-                          {p.status}
                         </span>
                       </div>
 
