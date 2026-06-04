@@ -7,6 +7,9 @@ WORKDIR /app
 # Kopiera paketfiler
 COPY package*.json ./
 
+# Sätt miljövariabel för att undvika Puppeteer-nedladdningar i byggsteget
+ENV PUPPETEER_SKIP_DOWNLOAD=1
+
 # Installera endast produktionsberoenden
 RUN npm install --omit=dev
 
