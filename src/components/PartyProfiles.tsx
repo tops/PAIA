@@ -1,8 +1,8 @@
 import React from 'react';
 import type { ClaimCard, PartyAffiliation } from '../types';
-import { aggregatePartyProfiles, calculateClaimWeight } from '../utils/scoring';
+import { aggregatePartyProfiles, calculateClaimWeight, calculateClaimWeightsMap, calculateDimensionOpposites } from '../utils/scoring';
 import { lockedDimensions } from '../data/mockClaims';
-import { Award, Shield, Cpu, BarChart2, ExternalLink, GitCompare } from 'lucide-react';
+import { Award, Shield, Cpu, BarChart2, ExternalLink, GitCompare, RefreshCw, Info } from 'lucide-react';
 
 interface PartyProfilesProps {
   claims: ClaimCard[];
@@ -124,16 +124,107 @@ export const PartyProfiles: React.FC<PartyProfilesProps> = ({
   const [viewMode, setViewMode] = React.useState<'single' | 'compare'>('single');
   const [comparedParties, setComparedParties] = React.useState<PartyAffiliation[]>(['S', 'M']);
 
-  const partyProfiles = aggregatePartyProfiles(claims);
-  const profile = partyProfiles.find(p => p.party === selectedParty);
+  // Sorting states for the claims table
+  type SortColumn = 'date' | 'source' | 'quote' | 'policyDegree' | 'partyBearing' | 'weight';
+  const [sortColumn, setSortColumn] = React.useState<SortColumn>('date');
+  const [sortDirection, setSortDirection] = React.useState<'asc' | 'desc'>('desc');
 
+  // Weights map and opposites calculations
+  const claimWeightsMap = React.useMemo(() => calculateClaimWeightsMap(claims), [claims]);
+  const dimensionOpposites = React.useMemo(() => calculateDimensionOpposites(claims), [claims]);
+
+  // Filter party claims unconditional for React rules
+  const partyClaims = React.useMemo(() => {
+    return claims.filter(c => c.partyAffiliation === selectedParty && !c.nearAiFlag && !c.campaignPracticeFlag && !c.externalPressureFlag);
+  }, [claims, selectedParty]);
+
+  const sortedClaims = React.useMemo(() => {
+    const claimsCopy = [...partyClaims];
+    return claimsCopy.sort((a, b) => {
+      let comparison = 0;
+      switch (sortColumn) {
+        case 'date':
+          comparison = a.date.localeCompare(b.date);
+          if (comparison === 0) {
+            comparison = a.id.localeCompare(b.id);
+          }
+          break;
+        case 'source':
+          comparison = a.source.localeCompare(b.source);
+          if (comparison === 0) {
+            comparison = a.actor.localeCompare(b.actor);
+          }
+          break;
+        case 'quote':
+          comparison = a.originalQuote.localeCompare(b.originalQuote);
+          break;
+        case 'policyDegree':
+          comparison = a.policyDegree - b.policyDegree;
+          break;
+        case 'partyBearing': {
+          const bearingOrder: Record<string, number> = { 'Låg': 1, 'Medel': 2, 'Hög': 3 };
+          const bearingA = bearingOrder[a.partyBearing] || 0;
+          const bearingB = bearingOrder[b.partyBearing] || 0;
+          comparison = bearingA - bearingB;
+          break;
+        }
+        case 'weight':
+          comparison = (claimWeightsMap.get(a.id) || 0) - (claimWeightsMap.get(b.id) || 0);
+          break;
+      }
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
+  }, [partyClaims, sortColumn, sortDirection, claimWeightsMap]);
+
+  // Aggregate profiles and find selected
+  const partyProfiles = React.useMemo(() => aggregatePartyProfiles(claims), [claims]);
+  const profile = React.useMemo(() => partyProfiles.find(p => p.party === selectedParty), [partyProfiles, selectedParty]);
+
+  const handleSort = (column: SortColumn) => {
+    if (sortColumn === column) {
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortColumn(column);
+      setSortDirection('desc');
+    }
+  };
+
+  const renderHeader = (label: string, column: SortColumn, align: 'left' | 'center' | 'right' = 'left') => {
+    const isActive = sortColumn === column;
+    const alignClass = align === 'center' ? 'text-center' : align === 'right' ? 'text-right' : 'text-left';
+    
+    return (
+      <th 
+        className={`gap-table-th ${alignClass} group hover:bg-[rgba(15,23,42,0.02)]`}
+        onClick={() => handleSort(column)}
+        style={{ 
+          cursor: 'pointer', 
+          userSelect: 'none',
+          transition: 'color 0.2s, background-color 0.2s',
+          backgroundColor: isActive ? 'rgba(15, 23, 42, 0.03)' : 'transparent',
+        }}
+      >
+        <div className={`flex items-center gap-1.5 ${align === 'center' ? 'justify-center' : align === 'right' ? 'justify-end' : 'justify-start'}`}>
+          <span>{label}</span>
+          <span 
+            className={`transition-all duration-200 ${isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-40'}`}
+            style={{ 
+              color: isActive ? 'var(--accent-teal)' : 'var(--text-muted)',
+              fontSize: '0.65rem',
+            }}
+          >
+            {isActive ? (sortDirection === 'asc' ? '▲' : '▼') : '▲'}
+          </span>
+        </div>
+      </th>
+    );
+  };
+
+  // Safe early-exit check if profile doesn't exist (done AFTER all hook declarations)
   if (!profile) {
-    return <div className="glass-panel p-6 text-white text-center">Partiprofil kunde inte hittas.</div>;
+    return <div className="glass-panel p-6 text-center" style={{ color: 'var(--text-primary)' }}>Partiprofil kunde inte hittas.</div>;
   }
 
-  // Get all claims for the selected party
-  const partyClaims = claims.filter(c => c.partyAffiliation === selectedParty && !c.nearAiFlag && !c.campaignPracticeFlag && !c.externalPressureFlag);
-  
   // Also get B and C claims for supplementary stats
   const countTrackB = claims.filter(c => c.partyAffiliation === selectedParty && c.nearAiFlag).length;
   const countTrackC = claims.filter(c => c.partyAffiliation === selectedParty && c.campaignPracticeFlag).length;
@@ -183,16 +274,16 @@ export const PartyProfiles: React.FC<PartyProfilesProps> = ({
   return (
     <div className="animate-slide flex flex-col gap-8">
       {/* Header */}
-      <div className="page-header flex justify-between items-center flex-wrap gap-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '20px' }}>
+      <div className="page-header flex justify-between items-center flex-wrap gap-4" style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '20px' }}>
         <div className="page-header-info">
-          <h1 className="page-title">Partianalys & Jämförelse</h1>
+          <h1 className="page-title">Partiprofiler & Jämförelser</h1>
           <p className="page-subtitle">
-            Evidensbaserad kartläggning av partiernas AI-politik och ideologiska profilering inför valet 2026.
+            Här kan du fördjupa dig i varje riksdagspartis AI-politiska ståndpunkter eller jämföra dem sida vid sida.
           </p>
         </div>
 
         {/* View Mode Toggle Buttons */}
-        <div className="flex bg-white/5 rounded-lg p-0.5" style={{ border: '1px solid rgba(255,255,255,0.06)', borderRadius: '8px' }}>
+        <div className="flex bg-[var(--bg-main)] rounded-lg p-0.5" style={{ border: '1px solid var(--border-color)', borderRadius: '8px' }}>
           <button 
             onClick={() => setViewMode('single')} 
             className="p-1.5 rounded flex items-center justify-center transition-all"
@@ -230,6 +321,22 @@ export const PartyProfiles: React.FC<PartyProfilesProps> = ({
             })}
           </div>
 
+          {/* Guiding / Transparency Box */}
+          <div className="glass-panel" style={{ padding: '20px', borderLeft: '4px solid var(--accent-teal)', display: 'flex', flexDirection: 'column', gap: '8px', background: 'rgba(15, 23, 42, 0.015)', marginBottom: '16px', borderRadius: '16px' }}>
+            <span style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--accent-teal)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+              Vägledning för partiprofilerna
+            </span>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', lineHeight: '1.5', margin: 0 }}>
+              Profilen och dess indexvärden sammanfattar partipolitiken baserat på riksdagsdata bearbetad med AI. Kom ihåg:
+              <br />
+              • **Poängen (0-5)** visar hur aktivt och konkret partiet driver frågorna i sina motioner – inte huruvida förslagen är bra eller dåliga.
+              <br />
+              • **Politisk mognadsgrad** indikerar underlagets styrka (från enstaka riksdagsfrågor till fastlagd partipolitik).
+              <br />
+              • Du kan själv verifiera AI-sammanfattningarna genom att granska de **faktiska riksdagsmotionerna** och citaten i tabellen längst ner på sidan.
+            </p>
+          </div>
+
           {/* Grid: Overview Card & High Level Scores */}
           <div className="profile-grid">
             {/* Overview Stats */}
@@ -242,7 +349,7 @@ export const PartyProfiles: React.FC<PartyProfilesProps> = ({
               <div className="flex flex-col gap-6">
                 {/* Position status box */}
                 <div>
-                  <div style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>Bevakningsstatus</div>
+                  <div style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>Politisk mognadsgrad</div>
                   <span className={`badge badge-teal text-xs font-bold py-1 px-3 ${
                     profile.status === 'Ingen bedömning' ? 'badge-gray' : 'ai-glow'
                   }`}>
@@ -271,7 +378,7 @@ export const PartyProfiles: React.FC<PartyProfilesProps> = ({
 
                 {/* Total weight sum */}
                 <div className="flex justify-between items-center text-xs pt-2">
-                  <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>Total evidensstyrka (Viktat):</span>
+                  <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>Antal tyngre förslag (Vägt):</span>
                   <span style={{ color: 'var(--accent-teal)', fontWeight: 800, fontSize: '1rem' }}>{profile.weightedScoreCount}</span>
                 </div>
               </div>
@@ -280,8 +387,8 @@ export const PartyProfiles: React.FC<PartyProfilesProps> = ({
             {/* High-level indexes */}
             <div className="glass-panel p-6 flex flex-col gap-6">
               <div>
-                <h2 className="panel-title" style={{ fontSize: '1.25rem', marginBottom: '4px' }}>Politiska Index (v3)</h2>
-                <p className="panel-subtitle" style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>Viktade genomsnittsvärden mätt på en skala 0-5 baserat på policyclaims.</p>
+                <h2 className="panel-title" style={{ fontSize: '1.25rem', marginBottom: '4px' }}>Ideologiska AI-profiler</h2>
+                <p className="panel-subtitle" style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>Värdena beräknas på en skala 0–5 baserat på partiernas konkreta ställningstaganden.</p>
               </div>
 
               <div className="index-slider-group">
@@ -289,7 +396,7 @@ export const PartyProfiles: React.FC<PartyProfilesProps> = ({
                 <div className="index-slider-item">
                   <div className="index-slider-header">
                     <span className="flex items-center gap-2 text-teal-400">
-                      <Cpu size={14} /> AI-Acceleration (Statsledd / Tillväxt)
+                      <Cpu size={14} /> Främja & Accelerera AI (Fokus på tillväxt & innovation)
                     </span>
                     <span style={{ color: 'var(--text-primary)' }}>{profile.accelerationScore} / 5</span>
                   </div>
@@ -300,8 +407,8 @@ export const PartyProfiles: React.FC<PartyProfilesProps> = ({
                     ></div>
                   </div>
                   <div className="index-slider-labels">
-                    <span>0 = Försiktig / Hämmad</span>
-                    <span>5 = Maximal acceleration</span>
+                    <span>0 = Avvaktande inställning</span>
+                    <span>5 = Maximal drivkraft & innovation</span>
                   </div>
                 </div>
 
@@ -309,7 +416,7 @@ export const PartyProfiles: React.FC<PartyProfilesProps> = ({
                 <div className="index-slider-item">
                   <div className="index-slider-header">
                     <span className="flex items-center gap-2 text-coral-400">
-                      <Shield size={14} /> AI-Skydd (Integritet / Rättssäkerhet)
+                      <Shield size={14} /> Reglera & Skydda (Fokus på integritet & etik)
                     </span>
                     <span style={{ color: 'var(--text-primary)' }}>{profile.protectionScore} / 5</span>
                   </div>
@@ -320,8 +427,8 @@ export const PartyProfiles: React.FC<PartyProfilesProps> = ({
                     ></div>
                   </div>
                   <div className="index-slider-labels">
-                    <span>0 = Minimal reglering</span>
-                    <span>5 = Starkt integritetsskydd</span>
+                    <span>0 = Minimal lagstiftning</span>
+                    <span>5 = Strikta regler & integritetsskydd</span>
                   </div>
                 </div>
 
@@ -329,7 +436,7 @@ export const PartyProfiles: React.FC<PartyProfilesProps> = ({
                 <div className="index-slider-item">
                   <div className="index-slider-header">
                     <span className="flex items-center gap-2 text-purple-400">
-                      <Award size={14} /> Statlig Styrning & Myndighet
+                      <Award size={14} /> Offentlig Styrning (Fokus på statlig samordning & välfärd)
                     </span>
                     <span style={{ color: 'var(--text-primary)' }}>{profile.governanceScore} / 5</span>
                   </div>
@@ -340,13 +447,49 @@ export const PartyProfiles: React.FC<PartyProfilesProps> = ({
                     ></div>
                   </div>
                   <div className="index-slider-labels">
-                    <span>0 = Fri marknad</span>
-                    <span>5 = Stark statlig koordinering</span>
+                    <span>0 = Helt marknadsdrivet</span>
+                    <span>5 = Stark offentlig samordning</span>
                   </div>
                 </div>
               </div>
             </div>
           </div>
+
+          {/* Policy Shift Section */}
+          {profile.stanceShifts && profile.stanceShifts.length > 0 ? (
+            <div className="glass-panel p-6 flex flex-col gap-4" style={{ borderLeft: '4px solid var(--accent-coral)', background: 'rgba(251, 113, 133, 0.03)', borderRadius: '16px' }}>
+              <h2 className="panel-title flex items-center gap-2" style={{ fontSize: '1.2rem', color: 'var(--text-primary)', margin: 0 }}>
+                <RefreshCw size={16} className="text-coral-400" /> Detekterat linjebyte / policyförskjutning (Sedan 2024)
+              </h2>
+              <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0 }}>
+                Systemet har upptäckt en signifikant förändring (&ge; 1.0 poängs skillnad) i partiets ställningstaganden före och efter den 1 januari 2024.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-1">
+                {profile.stanceShifts.map((shift, idx) => (
+                  <div key={idx} className="p-4 rounded-xl border border-[var(--border-color)] bg-[var(--bg-main)] flex flex-col justify-between gap-2">
+                    <div>
+                      <span className="font-bold text-xs" style={{ color: 'var(--text-primary)' }}>
+                        Axel: {shift.axis === 'Acceleration' ? 'Främja & Accelerera' : shift.axis === 'Protection' ? 'Reglera & Skydda' : 'Offentlig Styrning'}
+                      </span>
+                      <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '4px', marginBottom: 0 }}>
+                        Före 2024: <strong>{shift.oldScore}</strong> &rarr; Efter 2024: <strong>{shift.newScore}</strong>
+                      </p>
+                    </div>
+                    <span className={`badge ${shift.amount > 0 ? 'badge-teal' : 'badge-coral'}`} style={{ fontSize: '0.72rem', alignSelf: 'flex-start', padding: '4px 8px' }}>
+                      {shift.amount > 0 ? `+${shift.amount}` : shift.amount} poängs förskjutning
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="glass-panel p-4 flex gap-3 items-center" style={{ background: 'var(--bg-main)', borderRadius: '16px' }}>
+              <RefreshCw size={14} className="text-gray-500" style={{ opacity: 0.6 }} />
+              <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: 0 }}>
+                Inga större ideologiska linjebyten (&ge; 1.0 poängs förändring på kompassaxlarna) har detekterats för detta parti över tid.
+              </p>
+            </div>
+          )}
 
           {/* Official AI Program & Manifest Card */}
           {(() => {
@@ -404,7 +547,7 @@ export const PartyProfiles: React.FC<PartyProfilesProps> = ({
                   </p>
 
                   <div 
-                    className="flex flex-col gap-1.5 p-3.5 rounded-xl border border-white/5 bg-white/[0.005]"
+                    className="flex flex-col gap-1.5 p-3.5 rounded-xl border border-[var(--border-color)] bg-[var(--bg-main)]"
                     style={{ borderLeft: `3px dashed ${partyColor}50` }}
                   >
                     <span style={{ fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
@@ -424,11 +567,11 @@ export const PartyProfiles: React.FC<PartyProfilesProps> = ({
                     href={prog.sourceUrl} 
                     target="_blank" 
                     rel="noopener noreferrer"
-                    className="btn btn-secondary text-xs py-3 px-4 flex items-center justify-center gap-2 hover:bg-white/5"
+                    className="btn btn-secondary text-xs py-3 px-4 flex items-center justify-center gap-2 hover:bg-[var(--bg-card-hover)]"
                     style={{ 
                       color: 'var(--text-primary)', 
-                      border: '1px solid rgba(255,255,255,0.08)',
-                      backgroundColor: 'rgba(255,255,255,0.02)',
+                      border: '1px solid var(--border-color)',
+                      backgroundColor: 'var(--bg-main)',
                       borderRadius: '10px',
                       textDecoration: 'none',
                       display: 'inline-flex'
@@ -463,41 +606,73 @@ export const PartyProfiles: React.FC<PartyProfilesProps> = ({
 
           {/* 12 Locked Dimensions Breakdown */}
           <div className="glass-panel p-6">
-            <div className="mb-6 flex justify-between items-center">
+            <div className="mb-4 flex justify-between items-center">
               <div>
-                <h2 className="panel-title" style={{ fontSize: '1.25rem', marginBottom: '4px' }}>Mognad per dimension</h2>
+                <h2 className="panel-title" style={{ fontSize: '1.25rem', marginBottom: '4px' }}>Politiskt fokus & detaljrikedom</h2>
                 <p className="panel-subtitle" style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-                  Konkretionsgrad i partiets politik för de 12 låsta dimensionerna, baserat på weighted concretion score.
+                  Politisk konkretionsgrad och detaljnivå för de 12 låsta dimensionerna, baserat på weighted concretion score.
                 </p>
               </div>
               <BarChart2 className="text-gray-500" size={24} />
+            </div>
+
+            <div className="glass-panel p-4 mb-6 flex gap-3 items-start" style={{ background: 'rgba(0, 230, 207, 0.03)', border: '1px solid rgba(0, 230, 207, 0.1)', borderRadius: '12px' }}>
+              <Info size={16} className="text-teal-400" style={{ flexShrink: 0, marginTop: '2px' }} />
+              <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: '1.4', margin: 0 }}>
+                <strong>Viktig information om poängsättningen:</strong> Detta betyg (0-5) visar hur detaljerad och konkret partiets politik är inom respektive område. En hög poäng innebär mycket skarpa förslag, men indikerar inte om förslagen är för eller emot dimensionens innebörd (t.ex. hårdare övervakning kontra ökat integritetsskydd). För att se ideologiska motsättningar, se motpolerna under respektive dimensionskort.
+              </p>
             </div>
 
             <div className="dimension-grid">
               {lockedDimensions.map(d => {
                 const score = profile.dimensionScores[d.id] || 0;
                 const count = profile.dimensionClaimsCount[d.id] || 0;
+                const opposite = dimensionOpposites[d.id];
 
                 return (
-                  <div key={d.id} className="dimension-card">
-                    <div className="dimension-card-header">
-                      <div className="dimension-card-title">
-                        {d.id}. {d.name}
+                  <div key={d.id} className="dimension-card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'between' }}>
+                    <div>
+                      <div className="dimension-card-header">
+                        <div className="dimension-card-title">
+                          {d.id}. {d.name}
+                        </div>
+                        <span className="badge badge-gray" style={{ fontSize: '0.62rem' }}>
+                          {count} st
+                        </span>
                       </div>
-                      <span className="badge badge-gray" style={{ fontSize: '0.62rem' }}>
-                        {count} st
-                      </span>
+                      <p className="dimension-card-desc" style={{ marginBottom: '12px' }}>{d.description}</p>
                     </div>
-                    <p className="dimension-card-desc">{d.description}</p>
                     
-                    <div className="flex items-center gap-3" style={{ marginTop: 'auto', paddingTop: '8px' }}>
-                      <div className="gap-progress-bar">
-                        <div 
-                          className="gap-fill-teal" 
-                          style={{ width: `${(score / 5) * 100}%` }}
-                        ></div>
+                    <div style={{ marginTop: 'auto' }}>
+                      <div className="flex items-center gap-3" style={{ paddingTop: '8px' }}>
+                        <div className="gap-progress-bar">
+                          <div 
+                            className="gap-fill-teal" 
+                            style={{ width: `${(score / 5) * 100}%` }}
+                          ></div>
+                        </div>
+                        <span style={{ fontWeight: 800, color: 'var(--accent-teal)' }}>{score} / 5</span>
                       </div>
-                      <span style={{ fontWeight: 800, color: 'var(--accent-teal)' }}>{score} / 5</span>
+
+                      {opposite && (
+                        <div style={{ marginTop: '12px', paddingTop: '8px', borderTop: '1px dashed rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.7rem' }}>
+                          <span style={{ color: 'var(--text-secondary)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <GitCompare size={11} style={{ color: 'var(--accent-coral)' }} /> Motpoler i denna fråga:
+                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap', color: 'var(--text-secondary)' }}>
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', color: 'var(--text-primary)', fontWeight: 700 }}>
+                              <PartyLogo party={opposite.partyA} size={11} /> {opposite.partyA} ({opposite.scoreA})
+                            </span>
+                            <span>vs.</span>
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', color: 'var(--text-primary)', fontWeight: 700 }}>
+                              <PartyLogo party={opposite.partyB} size={11} /> {opposite.partyB} ({opposite.scoreB})
+                            </span>
+                          </div>
+                          <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>
+                            Skiljer sig på: <em>{opposite.axis === 'Acceleration' ? 'Främja/Driva på' : opposite.axis === 'Protection' ? 'Reglera/Skydda' : 'Offentlig Styrning'}</em>
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
@@ -507,32 +682,37 @@ export const PartyProfiles: React.FC<PartyProfilesProps> = ({
 
           {/* Contributing claims list */}
           <div className="glass-panel p-6">
-            <h2 className="panel-title" style={{ fontSize: '1.25rem', marginBottom: '16px' }}>Bidragande claims i policyprofilen ({partyClaims.length} st)</h2>
+            <h2 className="panel-title" style={{ fontSize: '1.25rem', marginBottom: '16px' }}>Bidragande ställningstaganden i policyprofilen ({partyClaims.length} st)</h2>
             
             {partyClaims.length === 0 ? (
               <div className="text-center py-6 text-gray-500 text-xs">
-                Inga bidragande policyclaims registrerade för närvarande.
+                Inga bidragande ställningstaganden registrerade för närvarande.
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="gap-table">
                   <thead>
                     <tr>
-                      <th className="gap-table-th">ID / Datum</th>
-                      <th className="gap-table-th">Källa / Aktör</th>
-                      <th className="gap-table-th">Originalcitat</th>
-                      <th className="gap-table-th text-center">Policygrad</th>
-                      <th className="gap-table-th text-center">Bäring</th>
-                      <th className="gap-table-th text-right">Claimvikt</th>
+                      {renderHeader('ID / Datum', 'date')}
+                      {renderHeader('Källa / Aktör', 'source')}
+                      {renderHeader('Originalcitat', 'quote')}
+                      {renderHeader('Policygrad', 'policyDegree', 'center')}
+                      {renderHeader('Bäring', 'partyBearing', 'center')}
+                      {renderHeader('Vikt', 'weight', 'right')}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-white/5">
-                    {partyClaims.map(claim => {
-                      const weight = calculateClaimWeight(claim);
+                  <tbody className="divide-y divide-[var(--border-color)]">
+                    {sortedClaims.map(claim => {
+                      const weight = claimWeightsMap.get(claim.id) || 0;
+                      const baseWeight = calculateClaimWeight(claim);
+                      const isGrouped = weight < baseWeight;
+                      const claimYear = parseInt(claim.date.substring(0, 4)) || 2026;
+                      const isOld = claimYear < 2025;
+
                       return (
-                        <tr key={claim.id} className="hover:bg-white/[0.01]">
+                        <tr key={claim.id} className="hover:bg-[rgba(15,23,42,0.015)] transition-colors">
                           <td className="gap-table-td" style={{ whiteSpace: 'nowrap' }}>
-                            <span style={{ fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-muted)', backgroundColor: 'rgba(255,255,255,0.03)', padding: '3px 8px', borderRadius: '6px', marginRight: '6px' }}>
+                            <span style={{ fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-muted)', backgroundColor: 'rgba(15, 23, 42, 0.04)', padding: '3px 8px', borderRadius: '6px', marginRight: '6px' }}>
                               {claim.id}
                             </span>
                             <span style={{ color: 'var(--text-secondary)' }}>{claim.date}</span>
@@ -548,7 +728,7 @@ export const PartyProfiles: React.FC<PartyProfilesProps> = ({
                                       href={sourceUrl} 
                                       target="_blank" 
                                       rel="noopener noreferrer" 
-                                      className="text-sky-400 hover:underline inline-flex items-center gap-0.5 font-semibold"
+                                      className="text-sky-600 hover:underline inline-flex items-center gap-0.5 font-semibold"
                                     >
                                       {claim.source} <ExternalLink size={10} />
                                     </a>
@@ -558,17 +738,29 @@ export const PartyProfiles: React.FC<PartyProfilesProps> = ({
                               })()}
                             </div>
                           </td>
-                          <td className="gap-table-td truncate" style={{ maxWidth: '300px' }} title={claim.originalQuote}>
+                          <td className="gap-table-td truncate" style={{ maxWidth: '300px', color: 'var(--text-primary)' }} title={claim.originalQuote}>
                             &rdquo;{claim.originalQuote}&rdquo;
                           </td>
-                          <td className="gap-table-td text-center font-bold text-white">
+                          <td className="gap-table-td text-center font-bold" style={{ color: 'var(--text-primary)' }}>
                             {claim.policyDegree}
                           </td>
-                          <td className="gap-table-td text-center text-gray-300">
+                          <td className="gap-table-td text-center" style={{ color: 'var(--text-secondary)' }}>
                             {claim.partyBearing}
                           </td>
                           <td className="gap-table-td text-right font-extrabold" style={{ color: 'var(--accent-teal)', fontSize: '0.95rem' }}>
-                            {weight}
+                            <div className="flex flex-col items-end gap-0.5">
+                              <span>{weight.toFixed(3)}</span>
+                              {isGrouped && (
+                                <span style={{ fontSize: '0.58rem', color: 'var(--accent-coral)', fontWeight: 700, backgroundColor: 'rgba(251, 113, 133, 0.08)', padding: '1px 4px', borderRadius: '4px', border: '1px solid rgba(251, 113, 133, 0.15)' }}>
+                                  Överlapp (dämpad)
+                                </span>
+                              )}
+                              {isOld && !isGrouped && (
+                                <span style={{ fontSize: '0.58rem', color: 'var(--text-muted)', fontWeight: 500 }}>
+                                  Äldre utspel ({claimYear})
+                                </span>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       );
@@ -626,10 +818,10 @@ export const PartyProfiles: React.FC<PartyProfilesProps> = ({
             {/* Acceleration Group */}
             <div className="glass-panel p-6 flex flex-col gap-5" style={{ borderTop: '3px solid var(--accent-teal)' }}>
               <div>
-                <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                  <Cpu size={14} className="text-teal-400" /> AI-Acceleration
+                <h3 className="text-sm font-bold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+                  <Cpu size={14} className="text-teal-400" /> Främja & Accelerera AI
                 </h3>
-                <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '2px' }}>Fokus på tillväxt, företagande & superdatorer.</p>
+                <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '2px' }}>Fokus på tillväxt, innovation & forskning.</p>
               </div>
               <div className="flex flex-col gap-4">
                 {comparedProfiles.map(p => (
@@ -641,7 +833,7 @@ export const PartyProfiles: React.FC<PartyProfilesProps> = ({
                       </span>
                       <span>{p.accelerationScore} / 5</span>
                     </div>
-                    <div className="w-full bg-white/5 rounded-full h-2.5" style={{ border: '1px solid rgba(255,255,255,0.04)', overflow: 'hidden' }}>
+                    <div className="w-full bg-[rgba(15,23,42,0.04)] rounded-full h-2.5" style={{ border: '1px solid var(--border-color)', overflow: 'hidden' }}>
                       <div 
                         className="rounded-full h-full transition-all duration-500" 
                         style={{ 
@@ -658,10 +850,10 @@ export const PartyProfiles: React.FC<PartyProfilesProps> = ({
             {/* Protection Group */}
             <div className="glass-panel p-6 flex flex-col gap-5" style={{ borderTop: '3px solid var(--accent-coral)' }}>
               <div>
-                <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                  <Shield size={14} className="text-coral-400" /> AI-Skydd
+                <h3 className="text-sm font-bold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+                  <Shield size={14} className="text-coral-400" /> Reglera & Skydda
                 </h3>
-                <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '2px' }}>Fokus på personlig integritet & etiska spärrar.</p>
+                <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '2px' }}>Fokus på integritet, etik & riskminimering.</p>
               </div>
               <div className="flex flex-col gap-4">
                 {comparedProfiles.map(p => (
@@ -673,7 +865,7 @@ export const PartyProfiles: React.FC<PartyProfilesProps> = ({
                       </span>
                       <span>{p.protectionScore} / 5</span>
                     </div>
-                    <div className="w-full bg-white/5 rounded-full h-2.5" style={{ border: '1px solid rgba(255,255,255,0.04)', overflow: 'hidden' }}>
+                    <div className="w-full bg-[rgba(15,23,42,0.04)] rounded-full h-2.5" style={{ border: '1px solid var(--border-color)', overflow: 'hidden' }}>
                       <div 
                         className="rounded-full h-full transition-all duration-500" 
                         style={{ 
@@ -690,10 +882,10 @@ export const PartyProfiles: React.FC<PartyProfilesProps> = ({
             {/* Governance Group */}
             <div className="glass-panel p-6 flex flex-col gap-5" style={{ borderTop: '3px solid var(--accent-purple)' }}>
               <div>
-                <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                  <Award size={14} className="text-purple-400" /> Statlig Styrning
+                <h3 className="text-sm font-bold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+                  <Award size={14} className="text-purple-400" /> Offentlig Styrning
                 </h3>
-                <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '2px' }}>Fokus på offentliga monopol & central samordning.</p>
+                <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '2px' }}>Fokus på samordning, digital välfärd & statligt ansvar.</p>
               </div>
               <div className="flex flex-col gap-4">
                 {comparedProfiles.map(p => (
@@ -705,7 +897,7 @@ export const PartyProfiles: React.FC<PartyProfilesProps> = ({
                       </span>
                       <span>{p.governanceScore} / 5</span>
                     </div>
-                    <div className="w-full bg-white/5 rounded-full h-2.5" style={{ border: '1px solid rgba(255,255,255,0.04)', overflow: 'hidden' }}>
+                    <div className="w-full bg-[rgba(15,23,42,0.04)] rounded-full h-2.5" style={{ border: '1px solid var(--border-color)', overflow: 'hidden' }}>
                       <div 
                         className="rounded-full h-full transition-all duration-500" 
                         style={{ 
@@ -726,7 +918,7 @@ export const PartyProfiles: React.FC<PartyProfilesProps> = ({
               Systematiska ideologiska kontraster
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
-              <div className="p-4 rounded-2xl border border-white/5 bg-white/[0.005]">
+              <div className="p-4 rounded-2xl border border-[var(--border-color)] bg-[var(--bg-main)]">
                 <div style={{ fontSize: '0.62rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--accent-coral)' }}>Störst ideologisk konflikt</div>
                 <div style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '6px' }}>
                   {maxDiffDim ? `${maxDiffDim.id}. ${maxDiffDim.name}` : 'Ingen'}
@@ -736,14 +928,14 @@ export const PartyProfiles: React.FC<PartyProfilesProps> = ({
                 </div>
                 <div className="flex gap-2 flex-wrap pt-3">
                   {comparedProfiles.map(p => (
-                    <span key={p.party} className="badge bg-white/5" style={{ fontSize: '0.62rem', color: partyColorMap[p.party], borderColor: `${partyColorMap[p.party]}20` }}>
+                    <span key={p.party} className="badge bg-[var(--bg-card)]" style={{ fontSize: '0.62rem', color: partyColorMap[p.party], borderColor: `${partyColorMap[p.party]}20` }}>
                       {p.party}: {p.dimensionScores[maxDiffDimId] || 0} / 5
                     </span>
                   ))}
                 </div>
               </div>
 
-              <div className="p-4 rounded-2xl border border-white/5 bg-white/[0.005]">
+              <div className="p-4 rounded-2xl border border-[var(--border-color)] bg-[var(--bg-main)]">
                 <div style={{ fontSize: '0.62rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--accent-teal)' }}>Största enighet</div>
                 <div style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '6px' }}>
                   {minDiffDim ? `${minDiffDim.id}. ${minDiffDim.name}` : 'Ingen gemensam dimension'}
@@ -754,7 +946,7 @@ export const PartyProfiles: React.FC<PartyProfilesProps> = ({
                 {minDiff < 10 && (
                   <div className="flex gap-2 flex-wrap pt-3">
                     {comparedProfiles.map(p => (
-                      <span key={p.party} className="badge bg-white/5" style={{ fontSize: '0.62rem', color: partyColorMap[p.party], borderColor: `${partyColorMap[p.party]}20` }}>
+                      <span key={p.party} className="badge bg-[var(--bg-card)]" style={{ fontSize: '0.62rem', color: partyColorMap[p.party], borderColor: `${partyColorMap[p.party]}20` }}>
                         {p.party}: {p.dimensionScores[minDiffDimId] || 0} / 5
                       </span>
                     ))}
@@ -762,7 +954,7 @@ export const PartyProfiles: React.FC<PartyProfilesProps> = ({
                 )}
               </div>
 
-              <div className="p-4 rounded-2xl border border-white/5 bg-white/[0.005]">
+              <div className="p-4 rounded-2xl border border-[var(--border-color)] bg-[var(--bg-main)]">
                 <div style={{ fontSize: '0.62rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--accent-purple)' }}>Starkt gemensamt fokus</div>
                 <div style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '6px' }}>
                   {maxClaimsDim ? `${maxClaimsDim.id}. ${maxClaimsDim.name}` : 'Ingen'}
@@ -772,7 +964,7 @@ export const PartyProfiles: React.FC<PartyProfilesProps> = ({
                 </div>
                 <div className="flex gap-2 flex-wrap pt-3">
                   {comparedProfiles.map(p => (
-                    <span key={p.party} className="badge bg-white/5" style={{ fontSize: '0.62rem', color: partyColorMap[p.party], borderColor: `${partyColorMap[p.party]}20` }}>
+                    <span key={p.party} className="badge bg-[var(--bg-card)]" style={{ fontSize: '0.62rem', color: partyColorMap[p.party], borderColor: `${partyColorMap[p.party]}20` }}>
                       {p.party}: {p.dimensionClaimsCount[maxClaimsDimId] || 0} st
                     </span>
                   ))}
@@ -782,9 +974,9 @@ export const PartyProfiles: React.FC<PartyProfilesProps> = ({
           </div>
 
           {/* 12 Dimensions Matrix Table */}
-          <div className="glass-panel p-6 overflow-x-auto" style={{ border: '1px solid rgba(255,255,255,0.06)', borderRadius: '16px' }}>
+          <div className="glass-panel p-6 overflow-x-auto" style={{ border: '1px solid var(--border-color)', borderRadius: '16px' }}>
             <div className="mb-4">
-              <h3 className="text-base font-bold text-white">Dimensionell Mognadsmatris</h3>
+              <h3 className="text-base font-bold" style={{ color: 'var(--text-primary)' }}>Dimensionell Mognadsmatris</h3>
               <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>Jämförelse av concretion score (0-5) och antal registrerade utspel per dimension för de valda partierna.</p>
             </div>
             <table className="w-full text-left border-collapse" style={{ minWidth: '700px', fontSize: '0.8rem', borderSpacing: '0px' }}>
@@ -809,9 +1001,9 @@ export const PartyProfiles: React.FC<PartyProfilesProps> = ({
                 {lockedDimensions.map(d => (
                   <tr 
                     key={d.id} 
-                    className="hover:bg-white/[0.015]" 
+                    className="hover:bg-[var(--bg-main)]" 
                     style={{ 
-                      borderBottom: '1px solid rgba(255,255,255,0.04)',
+                      borderBottom: '1px solid var(--border-color)',
                       transition: 'all 0.15s ease'
                     }}
                   >

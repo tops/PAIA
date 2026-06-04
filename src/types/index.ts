@@ -9,7 +9,9 @@ export type ActorType =
   | 'Myndighet'
   | 'Intresseorganisation'
   | 'Expert/forskare'
-  | 'Civilsamhälle';
+  | 'Civilsamhälle'
+  | 'Fackförbund'
+  | 'Riksdagsutskott';
 
 export type PartyAffiliation =
   | 'S'
@@ -100,6 +102,8 @@ export interface PartyAggregatedProfile {
   governanceScore: number; // 0-5
   dimensionScores: Record<number, number>; // dimension ID -> score 0-5
   dimensionClaimsCount: Record<number, number>;
+  dimensionStanceScores?: Record<number, { acceleration: number; protection: number; governance: number }>;
+  stanceShifts?: Array<{ axis: 'Acceleration' | 'Protection' | 'Governance'; amount: number; oldScore: number; newScore: number }>;
 }
 
 export interface UserStance {
@@ -109,7 +113,16 @@ export interface UserStance {
   answers?: Record<number, number>; // { [questionId]: optionIndex }
   completedOptionalIds?: number[]; // list of answered optional questions
   weights?: Record<number, number>; // { [questionId]: weightValue }
-  schemaVersion?: string; // e.g. 'v3.4'
+  schemaVersion?: string; // e.g. 'v4.0'
 }
 
-
+export interface Feedback {
+  id: string;
+  name?: string;
+  email?: string;
+  category: 'Förbättringsförslag' | 'Felaktig data' | 'Allmän feedback' | 'Annat';
+  message: string;
+  page: string; // The tab where feedback was submitted
+  timestamp: string; // ISO string
+  resolved: boolean;
+}

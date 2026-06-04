@@ -17,6 +17,7 @@ interface DatabaseViewProps {
   onDeleteClaim: (id: string) => void;
   onImportClaims: (imported: ClaimCard[]) => void;
   onNavigate: (tab: string) => void;
+  isAdminMode?: boolean;
 }
 
 // Removed duplicate local partyColorMap dictionary
@@ -26,7 +27,8 @@ export const DatabaseView: React.FC<DatabaseViewProps> = ({
   onEditClaim,
   onDeleteClaim,
   onImportClaims,
-  onNavigate
+  onNavigate,
+  isAdminMode = false
 }) => {
   // Database Tracks (Spår)
   // Spår A: AI-policy, Spår B: AI-nära samhälle, Spår C: Kampanj & demokrati
@@ -189,30 +191,44 @@ export const DatabaseView: React.FC<DatabaseViewProps> = ({
       {/* Header */}
       <div className="page-header">
         <div className="page-header-info">
-          <h1 className="page-title">Claims-Databas</h1>
+          <h1 className="page-title">Källbibliotek & Uttalanden</h1>
           <p className="page-subtitle">
-            Hantera, filtrera och granska de tre spåren av uttalanden och policyutspel inför valet 2026.
+            Här kan du söka och granska de faktiska uttalanden, motioner och pressmeddelanden som ligger till grund för analysen i systemet.
           </p>
         </div>
 
         {/* Database actions */}
         <div className="flex gap-3">
-          <button onClick={handleResetToDefault} className="btn btn-secondary" style={{ borderColor: 'var(--accent-teal)', color: 'var(--accent-teal)' }}>
-            <RotateCcw size={16} /> Återställ Standard ({initialClaims.length} st)
-          </button>
-          <label className="btn btn-secondary cursor-pointer">
-            <Upload size={16} /> Importera DB
-            <input 
-              type="file" 
-              accept=".json" 
-              onChange={handleImport} 
-              className="hidden" 
-            />
-          </label>
+          {isAdminMode && (
+            <>
+              <button onClick={handleResetToDefault} className="btn btn-secondary" style={{ borderColor: 'var(--accent-teal)', color: 'var(--accent-teal)' }}>
+                <RotateCcw size={16} /> Återställ Standard ({initialClaims.length} st)
+              </button>
+              <label className="btn btn-secondary cursor-pointer">
+                <Upload size={16} /> Importera DB
+                <input 
+                  type="file" 
+                  accept=".json" 
+                  onChange={handleImport} 
+                  className="hidden" 
+                />
+              </label>
+            </>
+          )}
           <button onClick={handleExport} className="btn btn-secondary">
             <Download size={16} /> Exportera DB
           </button>
         </div>
+      </div>
+
+      {/* Guiding & AI Warning Box */}
+      <div className="glass-panel" style={{ padding: '20px', borderLeft: '4px solid var(--accent-coral)', display: 'flex', flexDirection: 'column', gap: '8px', background: 'rgba(239, 68, 68, 0.02)', borderRadius: '16px' }}>
+        <span style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--accent-coral)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+          Källkritisk information
+        </span>
+        <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', lineHeight: '1.5', margin: 0 }}>
+          I detta källbibliotek hittar du alla analyserade riksdagsdokument, debattartiklar och beslut. Sammanfattningar, dimensioner och indexbidrag har tagits fram med stöd av AI. Då en algoritm inte kan förstå politisk ironi, kontext eller underförstådda meningar perfekt, uppmanar vi dig att läsa originalcitaten och klicka på länkarna till riksdagens hemsida för att själv göra en självständig och källkritisk bedömning.
+        </p>
       </div>
 
       {/* Track Selector Tabs */}
@@ -221,27 +237,27 @@ export const DatabaseView: React.FC<DatabaseViewProps> = ({
           onClick={() => { setActiveTrack('A'); resetFilters(); }} 
           className={`tab-btn ${activeTrack === 'A' ? 'active' : ''}`}
         >
-          Spår A: AI-policy ({claims.filter(c => !c.nearAiFlag && !c.campaignPracticeFlag).length})
+          AI-politik & konkreta förslag ({claims.filter(c => !c.nearAiFlag && !c.campaignPracticeFlag).length})
         </button>
         <button 
           onClick={() => { setActiveTrack('B'); resetFilters(); }} 
           className={`tab-btn ${activeTrack === 'B' ? 'active' : ''}`}
         >
-          Spår B: AI-nära samhällsclaims ({claims.filter(c => c.nearAiFlag).length})
+          Samhällsfrågor med AI-inslag ({claims.filter(c => c.nearAiFlag).length})
         </button>
         <button 
           onClick={() => { setActiveTrack('C'); resetFilters(); }} 
           className={`tab-btn ${activeTrack === 'C' ? 'active' : ''}`}
         >
-          Spår C: AI i politisk praktik ({claims.filter(c => c.campaignPracticeFlag).length})
+          Kampanjer, desinformation & troll ({claims.filter(c => c.campaignPracticeFlag).length})
         </button>
       </div>
 
       {/* Filter panel */}
       <div className="glass-panel filter-panel flex flex-col gap-4">
-        <div className="flex items-center gap-2 pb-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', marginBottom: '16px' }}>
+        <div className="flex items-center gap-2 pb-4" style={{ borderBottom: '1px solid var(--border-color)', marginBottom: '16px' }}>
           <Filter size={16} className="text-teal-400" />
-          <h3 style={{ fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Avancerad Sökning & Filtrering</h3>
+          <h3 style={{ fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Sök och filtrera bland uttalandena</h3>
         </div>
 
         <div className="filter-grid">
@@ -306,10 +322,10 @@ export const DatabaseView: React.FC<DatabaseViewProps> = ({
               className="form-control"
             >
               <option value="Alla">Alla</option>
-              <option value="0">Grad 0: Ingen AI-politik</option>
-              <option value="1">Grad 1: AI-nära samhällsclaim</option>
-              <option value="2">Grad 2: AI-policyclaim</option>
-              <option value="3">Grad 3: Konkret åtgärd</option>
+              <option value="0">Nivå 0: Allmänt omnämnande (Ingen direkt policy)</option>
+              <option value="1">Nivå 1: AI-nära samhällsfråga</option>
+              <option value="2">Nivå 2: Vision eller ställningstagande</option>
+              <option value="3">Nivå 3: Skarpt och konkret förslag</option>
             </select>
           </div>
 
@@ -339,11 +355,11 @@ export const DatabaseView: React.FC<DatabaseViewProps> = ({
             </div>
             
             {/* View Mode Toggle Buttons */}
-            <div className="flex bg-white/5 rounded-lg p-0.5" style={{ border: '1px solid rgba(255,255,255,0.06)', borderRadius: '8px' }}>
+            <div className="flex bg-[rgba(15,23,42,0.02)] rounded-lg p-0.5" style={{ border: '1px solid var(--border-color)', borderRadius: '8px' }}>
               <button 
                 onClick={() => setViewMode('cards')} 
                 className="p-1.5 rounded flex items-center justify-center transition-all"
-                style={{ border: 'none', borderRadius: '6px', padding: '6px 10px', display: 'flex', gap: '6px', alignItems: 'center', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer', background: viewMode === 'cards' ? 'rgba(0, 230, 207, 0.12)' : 'transparent', color: viewMode === 'cards' ? 'var(--accent-teal)' : 'var(--text-secondary)' }}
+                style={{ border: 'none', borderRadius: '6px', padding: '6px 10px', display: 'flex', gap: '6px', alignItems: 'center', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer', background: viewMode === 'cards' ? 'rgba(13, 148, 136, 0.08)' : 'transparent', color: viewMode === 'cards' ? 'var(--accent-teal)' : 'var(--text-secondary)' }}
                 title="Visa som kort"
               >
                 <LayoutGrid size={13} /> Kortvy
@@ -351,7 +367,7 @@ export const DatabaseView: React.FC<DatabaseViewProps> = ({
               <button 
                 onClick={() => setViewMode('compact')} 
                 className="p-1.5 rounded flex items-center justify-center transition-all"
-                style={{ border: 'none', borderRadius: '6px', padding: '6px 10px', display: 'flex', gap: '6px', alignItems: 'center', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer', background: viewMode === 'compact' ? 'rgba(0, 230, 207, 0.12)' : 'transparent', color: viewMode === 'compact' ? 'var(--accent-teal)' : 'var(--text-secondary)' }}
+                style={{ border: 'none', borderRadius: '6px', padding: '6px 10px', display: 'flex', gap: '6px', alignItems: 'center', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer', background: viewMode === 'compact' ? 'rgba(13, 148, 136, 0.08)' : 'transparent', color: viewMode === 'compact' ? 'var(--accent-teal)' : 'var(--text-secondary)' }}
                 title="Kompakt kortvy"
               >
                 <Grid3X3 size={13} /> Kompaktvy
@@ -426,18 +442,18 @@ export const DatabaseView: React.FC<DatabaseViewProps> = ({
         ) : viewMode === 'sources' ? (
           <div className="flex flex-col gap-6 animate-slide">
             {/* Global Expand/Collapse Controls */}
-            <div className="flex justify-end gap-3 pb-2" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+            <div className="flex justify-end gap-3 pb-2" style={{ borderBottom: '1px solid var(--border-color)' }}>
               <button 
                 onClick={() => setAllSourcesExpanded(true)} 
                 className="btn btn-secondary text-xs" 
-                style={{ padding: '6px 12px', display: 'flex', gap: '6px', alignItems: 'center', borderColor: 'rgba(255,255,255,0.15)' }}
+                style={{ padding: '6px 12px', display: 'flex', gap: '6px', alignItems: 'center', borderColor: 'var(--border-color)' }}
               >
                 <FolderOpen size={13} className="text-teal-400" /> Expandera alla
               </button>
               <button 
                 onClick={() => setAllSourcesExpanded(false)} 
                 className="btn btn-secondary text-xs" 
-                style={{ padding: '6px 12px', display: 'flex', gap: '6px', alignItems: 'center', borderColor: 'rgba(255,255,255,0.15)' }}
+                style={{ padding: '6px 12px', display: 'flex', gap: '6px', alignItems: 'center', borderColor: 'var(--border-color)' }}
               >
                 Kollapsa alla
               </button>
@@ -516,16 +532,16 @@ export const DatabaseView: React.FC<DatabaseViewProps> = ({
                               padding: '0px', 
                               borderRadius: '16px',
                               overflow: 'hidden',
-                              border: isExpanded ? `1px solid rgba(255,255,255,0.12)` : '1px solid rgba(255,255,255,0.04)',
-                              background: isExpanded ? 'rgba(255, 255, 255, 0.015)' : 'rgba(255, 255, 255, 0.008)',
-                              boxShadow: isExpanded ? '0 8px 32px rgba(0, 0, 0, 0.3)' : 'none',
+                              border: isExpanded ? `1px solid var(--border-color-hover)` : '1px solid var(--border-color)',
+                              background: isExpanded ? 'var(--bg-card-hover)' : 'var(--bg-card)',
+                              boxShadow: isExpanded ? 'var(--shadow-main)' : 'none',
                               transition: 'all 0.3s ease'
                             }}
                           >
                             {/* Panel Header */}
                             <div 
                               onClick={() => setExpandedSources(prev => ({ ...prev, [sourceName]: !prev[sourceName] }))}
-                              className="flex justify-between items-center p-4 cursor-pointer hover:bg-white/[0.02] transition-all"
+                              className="flex justify-between items-center p-4 cursor-pointer hover:bg-[rgba(15,23,42,0.02)] transition-all"
                               style={{ 
                                 borderLeft: `4px solid ${partyColor}`,
                                 userSelect: 'none'
@@ -533,7 +549,7 @@ export const DatabaseView: React.FC<DatabaseViewProps> = ({
                             >
                               <div className="flex items-center gap-4 flex-wrap flex-1 min-w-0">
                                 {/* Toggle Indicator Icon */}
-                                <span className="text-gray-500 hover:text-white transition-all flex items-center justify-center">
+                                <span className="text-gray-500 hover:text-[var(--text-primary)] transition-all flex items-center justify-center">
                                   {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                                 </span>
 
@@ -579,9 +595,9 @@ export const DatabaseView: React.FC<DatabaseViewProps> = ({
                                 <span 
                                   className="text-xs font-bold px-2.5 py-1 rounded-full"
                                   style={{ 
-                                    backgroundColor: isExpanded ? 'rgba(0, 230, 207, 0.12)' : 'rgba(255,255,255,0.03)',
+                                    backgroundColor: isExpanded ? 'rgba(13, 148, 136, 0.08)' : 'rgba(15, 23, 42, 0.04)',
                                     color: isExpanded ? 'var(--accent-teal)' : 'var(--text-muted)',
-                                    border: isExpanded ? '1px solid rgba(0, 230, 207, 0.2)' : '1px solid rgba(255,255,255,0.05)',
+                                    border: isExpanded ? '1px solid rgba(13, 148, 136, 0.15)' : '1px solid var(--border-color)',
                                     fontSize: '0.65rem'
                                   }}
                                 >
@@ -595,8 +611,8 @@ export const DatabaseView: React.FC<DatabaseViewProps> = ({
                               <div 
                                 className="p-4 flex flex-col gap-4" 
                                 style={{ 
-                                  backgroundColor: 'rgba(0,0,0,0.18)',
-                                  borderTop: '1px solid rgba(255,255,255,0.05)'
+                                  backgroundColor: 'var(--bg-main)',
+                                  borderTop: '1px solid var(--border-color)'
                                 }}
                               >
                                 {claimsList.map(claim => {
@@ -614,15 +630,15 @@ export const DatabaseView: React.FC<DatabaseViewProps> = ({
                                       style={{ 
                                         padding: '16px', 
                                         borderRadius: '12px',
-                                        border: '1px solid rgba(255,255,255,0.04)',
-                                        background: 'rgba(255,255,255,0.015)',
+                                        border: '1px solid var(--border-color)',
+                                        background: 'var(--bg-card)',
                                         borderLeft: `3px solid ${partyColor}`
                                       }}
                                     >
                                       {/* Claim Header Row */}
-                                      <div className="flex justify-between items-center flex-wrap gap-2 pb-2 mb-2" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                                      <div className="flex justify-between items-center flex-wrap gap-2 pb-2 mb-2" style={{ borderBottom: '1px solid var(--border-color)' }}>
                                         <div className="flex items-center gap-2 flex-wrap">
-                                          <span className="text-[0.62rem] font-bold text-gray-500 bg-white/5 px-2 py-0.5 rounded">
+                                          <span className="text-[0.62rem] font-bold text-gray-500 bg-[rgba(15,23,42,0.04)] px-2 py-0.5 rounded">
                                             {claim.id}
                                           </span>
                                           <span 
@@ -646,7 +662,7 @@ export const DatabaseView: React.FC<DatabaseViewProps> = ({
                                                   href={sourceUrl} 
                                                   target="_blank" 
                                                   rel="noopener noreferrer" 
-                                                  className="p-1 rounded hover:bg-white/5 text-sky-400 hover:text-sky-300 transition-all"
+                                                  className="p-1.5 rounded hover:bg-[var(--border-color)] text-sky-600 hover:text-sky-800 transition-all"
                                                   title="Öppna originaldokumentet"
                                                 >
                                                   <ExternalLink size={12} />
@@ -655,55 +671,59 @@ export const DatabaseView: React.FC<DatabaseViewProps> = ({
                                             }
                                             return null;
                                           })()}
-                                          <button 
-                                            onClick={() => {
-                                              onEditClaim(claim);
-                                              onNavigate('assistent');
-                                            }}
-                                            className="p-1 rounded hover:bg-white/5 text-gray-400 hover:text-white"
-                                            style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}
-                                            title="Redigera"
-                                          >
-                                            <Edit size={12} />
-                                          </button>
-                                          <button 
-                                            onClick={() => {
-                                              if (confirm('Är du säker på att du vill ta bort detta claim?')) {
-                                                onDeleteClaim(claim.id);
-                                              }
-                                            }}
-                                            className="p-1 rounded hover:bg-white/5 text-gray-400 hover:text-coral-400"
-                                            style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}
-                                            title="Ta bort"
-                                          >
-                                            <Trash2 size={12} />
-                                          </button>
+                                          {isAdminMode && (
+                                            <div className="flex gap-2">
+                                              <button 
+                                                onClick={() => {
+                                                  onEditClaim(claim);
+                                                  onNavigate('metod');
+                                                }}
+                                                className="p-1.5 rounded hover:bg-[var(--border-color)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-all"
+                                                style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}
+                                                title="Redigera"
+                                              >
+                                                <Edit size={12} />
+                                              </button>
+                                              <button 
+                                                onClick={() => {
+                                                  if (confirm('Är du säker på att du vill ta bort detta claim?')) {
+                                                    onDeleteClaim(claim.id);
+                                                  }
+                                                }}
+                                                className="p-1.5 rounded hover:bg-red-50 text-[var(--text-muted)] hover:text-[var(--accent-coral)] transition-all"
+                                                style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}
+                                                title="Ta bort"
+                                              >
+                                                <Trash2 size={12} />
+                                              </button>
+                                            </div>
+                                          )}
                                         </div>
                                       </div>
 
                                       {/* Claim Text content */}
                                       <div className="flex flex-col gap-2">
-                                        <p className="text-xs font-semibold text-white" style={{ lineHeight: '1.4' }}>
+                                        <p className="text-xs font-semibold" style={{ color: 'var(--text-primary)', lineHeight: '1.4' }}>
                                           {claim.neutralSummary}
                                         </p>
                                         <blockquote 
-                                          className="text-[0.7rem] text-gray-400 italic bg-black/10 p-3 rounded-lg border border-white/5"
-                                          style={{ fontStyle: 'italic', margin: '0px', marginTop: '4px' }}
+                                          className="text-[0.7rem] italic bg-[var(--bg-main)] p-3 rounded-lg border border-[var(--border-color)]"
+                                          style={{ color: 'var(--text-secondary)', fontStyle: 'italic', margin: '0px', marginTop: '4px' }}
                                         >
                                           &rdquo;{claim.originalQuote}&rdquo;
                                         </blockquote>
                                       </div>
 
                                       {/* Claim Footer/Metrics */}
-                                      <div className="flex justify-between items-center flex-wrap gap-4 text-[0.68rem] text-gray-500 pt-3 mt-3 border-t border-white/5">
+                                      <div className="flex justify-between items-center flex-wrap gap-4 text-[0.68rem] text-[var(--text-muted)] pt-3 mt-3 border-t border-[var(--border-color)]">
                                         <div className="flex gap-4">
-                                          <span>Policygrad: <span className="text-gray-300 font-semibold">{claim.policyDegree}</span></span>
-                                          <span>Evidens: <span className="text-gray-300 font-semibold">{claim.evidenceStrength}/5</span></span>
-                                          <span>Claimvikt: <span className="text-gray-300 font-bold">{claimWeight}</span></span>
+                                          <span>Policygrad: <span className="text-[var(--text-secondary)] font-semibold">{claim.policyDegree}</span></span>
+                                          <span>Evidens: <span className="text-[var(--text-secondary)] font-semibold">{claim.evidenceStrength}/5</span></span>
+                                          <span>Claimvikt: <span className="text-[var(--text-secondary)] font-bold">{claimWeight}</span></span>
                                         </div>
                                         <div className="flex gap-2">
                                           {claim.tags.map(tag => (
-                                            <span key={tag} className="text-[0.58rem] bg-white/5 px-2 py-0.5 rounded text-gray-400">
+                                            <span key={tag} className="text-[0.58rem] bg-[var(--bg-main)] px-2 py-0.5 rounded text-[var(--text-muted)]">
                                               #{tag}
                                             </span>
                                           ))}
@@ -724,10 +744,10 @@ export const DatabaseView: React.FC<DatabaseViewProps> = ({
             })()}
           </div>
         ) : viewMode === 'table' ? (
-          <div className="glass-panel overflow-x-auto" style={{ padding: '0px', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '16px' }}>
+          <div className="glass-panel overflow-x-auto" style={{ padding: '0px', border: '1px solid var(--border-color)', borderRadius: '16px' }}>
             <table className="w-full text-left border-collapse" style={{ minWidth: '950px', fontSize: '0.8rem', borderSpacing: '0px' }}>
               <thead>
-                <tr style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                <tr style={{ background: 'var(--bg-sidebar)', borderBottom: '1px solid var(--border-color)' }}>
                   <th style={{ padding: '14px 16px', fontWeight: 800, color: 'var(--text-primary)', width: '110px' }}>ID</th>
                   <th style={{ padding: '14px 16px', fontWeight: 800, color: 'var(--text-primary)', width: '90px' }}>Datum</th>
                   <th style={{ padding: '14px 16px', fontWeight: 800, color: 'var(--text-primary)', width: '60px' }}>Parti</th>
@@ -737,7 +757,7 @@ export const DatabaseView: React.FC<DatabaseViewProps> = ({
                   <th style={{ padding: '14px 16px', fontWeight: 800, color: 'var(--text-primary)' }}>Sammanfattning / Citat</th>
                   <th style={{ padding: '14px 16px', fontWeight: 800, color: 'var(--text-primary)', width: '55px', textAlign: 'center' }}>Vikt</th>
                   <th style={{ padding: '14px 16px', fontWeight: 800, color: 'var(--text-primary)', width: '100px' }}>Status</th>
-                  <th style={{ padding: '14px 16px', fontWeight: 800, color: 'var(--text-primary)', width: '80px', textAlign: 'center' }}>Åtgärder</th>
+                  {isAdminMode && <th style={{ padding: '14px 16px', fontWeight: 800, color: 'var(--text-primary)', width: '80px', textAlign: 'center' }}>Åtgärder</th>}
                 </tr>
               </thead>
               <tbody>
@@ -753,9 +773,9 @@ export const DatabaseView: React.FC<DatabaseViewProps> = ({
                   return (
                     <tr 
                       key={claim.id} 
-                      className="hover:bg-white/[0.02]" 
+                      className="hover:bg-[rgba(15,23,42,0.02)]" 
                       style={{ 
-                        borderBottom: '1px solid rgba(255,255,255,0.04)',
+                        borderBottom: '1px solid var(--border-color)',
                         transition: 'all 0.15s ease'
                       }}
                     >
@@ -815,33 +835,35 @@ export const DatabaseView: React.FC<DatabaseViewProps> = ({
                           {claim.reviewStatus}
                         </span>
                       </td>
-                      <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                        <div className="flex gap-1 justify-center">
-                          <button 
-                            onClick={() => {
-                              onEditClaim(claim);
-                              onNavigate('assistent');
-                            }}
-                            className="p-1 rounded hover:bg-white/5 text-gray-400 hover:text-white"
-                            style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}
-                            title="Redigera"
-                          >
-                            <Edit size={13} />
-                          </button>
-                          <button 
-                            onClick={() => {
-                              if (confirm('Är du säker på att du vill ta bort detta claim?')) {
-                                onDeleteClaim(claim.id);
-                              }
-                            }}
-                            className="p-1 rounded hover:bg-white/5 text-gray-400 hover:text-coral-400"
-                            style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}
-                            title="Ta bort"
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        </div>
-                      </td>
+                      {isAdminMode && (
+                        <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                          <div className="flex gap-1 justify-center">
+                            <button 
+                              onClick={() => {
+                                onEditClaim(claim);
+                                onNavigate('metod');
+                              }}
+                              className="p-1.5 rounded hover:bg-[var(--border-color)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-all"
+                              style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}
+                              title="Redigera"
+                            >
+                              <Edit size={13} />
+                            </button>
+                            <button 
+                              onClick={() => {
+                                if (confirm('Är du säker på att du vill ta bort detta claim?')) {
+                                  onDeleteClaim(claim.id);
+                                }
+                              }}
+                              className="p-1.5 rounded hover:bg-red-50 text-[var(--text-muted)] hover:text-[var(--accent-coral)] transition-all"
+                              style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}
+                              title="Ta bort"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   );
                 })}
@@ -861,7 +883,7 @@ export const DatabaseView: React.FC<DatabaseViewProps> = ({
               return (
                 <div 
                   key={claim.id} 
-                  className="glass-panel flex flex-col gap-2 cursor-pointer hover:-translate-y-1 transition-all duration-300"
+                  className={`glass-panel flex flex-col gap-2 transition-all duration-300 ${isAdminMode ? 'cursor-pointer hover:-translate-y-1' : ''}`}
                   style={{ 
                     borderLeft: `3px solid ${partyColor}`, 
                     padding: '16px', 
@@ -869,17 +891,18 @@ export const DatabaseView: React.FC<DatabaseViewProps> = ({
                     fontSize: '0.82rem',
                     minHeight: '140px',
                     justifyContent: 'space-between',
-                    background: 'rgba(255,255,255,0.015)',
-                    border: '1px solid rgba(255,255,255,0.05)',
-                    backdropFilter: 'blur(20px)'
+                    background: 'var(--bg-card)',
+                    border: '1px solid var(--border-color)',
+                    backdropFilter: 'blur(20px)',
+                    cursor: isAdminMode ? 'pointer' : 'default'
                   }}
-                  onClick={() => {
+                  onClick={isAdminMode ? () => {
                     onEditClaim(claim);
-                    onNavigate('assistent');
-                  }}
-                  title="Klicka för att redigera"
+                    onNavigate('metod');
+                  } : undefined}
+                  title={isAdminMode ? "Klicka för att redigera" : undefined}
                 >
-                  <div className="flex justify-between items-center text-xs pb-2" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                  <div className="flex justify-between items-center text-xs pb-2" style={{ borderBottom: '1px solid var(--border-color)' }}>
                     <span className="flex items-center gap-1 font-extrabold" style={{ color: partyColor }}>
                       <PartyLogo party={claim.partyAffiliation} size={12} />
                       {claim.partyAffiliation} &bull; {claim.date}
@@ -889,9 +912,9 @@ export const DatabaseView: React.FC<DatabaseViewProps> = ({
                   <div style={{ color: 'var(--text-primary)', fontWeight: 600, fontSize: '0.88rem', lineHeight: '1.3', padding: '8px 0px' }}>
                     {claim.neutralSummary}
                   </div>
-                  <div className="flex justify-between items-center text-[0.72rem] text-gray-400 border-t border-white/5 pt-2 mt-1" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex justify-between items-center text-[0.72rem] text-gray-400 border-t border-[var(--border-color)] pt-2 mt-1" onClick={(e) => e.stopPropagation()}>
                     <span className="truncate" style={{ maxWidth: '80px' }} title={claim.actor}>{claim.actor}</span>
-                    <span className="truncate flex items-center gap-1 hover:text-white" style={{ maxWidth: '110px' }} title={claim.source}>
+                    <span className="truncate flex items-center gap-1 hover:text-[var(--text-primary)]" style={{ maxWidth: '110px' }} title={claim.source}>
                       {(() => {
                         const sourceUrl = claim.sourceUrl || (claim.id.startsWith('riksdagen-') ? `https://data.riksdagen.se/dokument/${claim.id.replace('riksdagen-', '').replace(/-d\d+$/, '')}.html` : null);
                         if (sourceUrl) {
@@ -916,7 +939,7 @@ export const DatabaseView: React.FC<DatabaseViewProps> = ({
             })}
           </div>
         ) : viewMode === 'timeline' ? (
-          <div className="relative flex flex-col gap-6 pl-8 animate-slide" style={{ borderLeft: '2px solid rgba(255,255,255,0.06)', marginLeft: '12px', paddingBottom: '20px' }}>
+          <div className="relative flex flex-col gap-6 pl-8 animate-slide" style={{ borderLeft: '2px solid var(--border-color)', marginLeft: '12px', paddingBottom: '20px' }}>
             {sortedClaims.map(claim => {
               const weight = calculateClaimWeight(claim);
               const primaryDimName = lockedDimensions.find(d => d.id === claim.primaryDimension)?.name || 'Okänd';
@@ -986,42 +1009,44 @@ export const DatabaseView: React.FC<DatabaseViewProps> = ({
                       {claim.neutralSummary}
                     </div>
 
-                    <div className="claim-card-quote text-xs" style={{ margin: '0px', padding: '8px 12px', background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.03)' }}>
+                    <div className="claim-card-quote text-xs" style={{ margin: '0px', padding: '8px 12px', background: 'rgba(15, 23, 42, 0.02)', border: '1px solid var(--border-color)' }}>
                       &rdquo;{claim.originalQuote}&rdquo;
                     </div>
 
-                    <div className="flex justify-between items-center flex-wrap gap-4 text-xs pt-2 border-t border-white/5 text-gray-400">
+                    <div className="flex justify-between items-center flex-wrap gap-4 text-xs pt-2 border-t border-[var(--border-color)] text-[var(--text-muted)]">
                       <div>
                         Aktör: <span style={{ color: 'var(--text-primary)' }}>{claim.actor} ({claim.actorType})</span>
                       </div>
                       <div className="flex gap-3 items-center">
                         <span>Dimension: <span style={{ color: partyColor }}>{claim.primaryDimension}. {primaryDimName}</span></span>
                         <span>Vikt: <span style={{ color: 'var(--text-primary)', fontWeight: 700 }}>{weight}</span></span>
-                        <div className="flex gap-1 justify-center ml-2">
-                          <button 
-                            onClick={() => {
-                              onEditClaim(claim);
-                              onNavigate('assistent');
-                            }}
-                            className="p-1 rounded hover:bg-white/5 text-gray-400 hover:text-white"
-                            style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}
-                            title="Redigera"
-                          >
-                            <Edit size={13} />
-                          </button>
-                          <button 
-                            onClick={() => {
-                              if (confirm('Är du säker på att du vill ta bort detta claim?')) {
-                                onDeleteClaim(claim.id);
-                              }
-                            }}
-                            className="p-1 rounded hover:bg-white/5 text-gray-400 hover:text-coral-400"
-                            style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}
-                            title="Ta bort"
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        </div>
+                        {isAdminMode && (
+                          <div className="flex gap-1 justify-center ml-2">
+                            <button 
+                              onClick={() => {
+                                onEditClaim(claim);
+                                onNavigate('metod');
+                              }}
+                              className="p-1 rounded hover:bg-[rgba(15,23,42,0.04)] text-gray-400 hover:text-[var(--text-primary)]"
+                              style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}
+                              title="Redigera"
+                            >
+                              <Edit size={13} />
+                            </button>
+                            <button 
+                              onClick={() => {
+                                if (confirm('Är du säker på att du vill ta bort detta claim?')) {
+                                  onDeleteClaim(claim.id);
+                                }
+                              }}
+                              className="p-1 rounded hover:bg-[rgba(15,23,42,0.04)] text-gray-400 hover:text-coral-400"
+                              style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}
+                              title="Ta bort"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1049,7 +1074,7 @@ export const DatabaseView: React.FC<DatabaseViewProps> = ({
                   {/* ID and Status Row */}
                   <div className="claim-card-header">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span style={{ fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-muted)', backgroundColor: 'rgba(255,255,255,0.03)', padding: '3px 8px', borderRadius: '6px' }}>
+                      <span style={{ fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-muted)', backgroundColor: 'rgba(15, 23, 42, 0.04)', padding: '3px 8px', borderRadius: '6px' }}>
                         {claim.id}
                       </span>
                       <span className={`badge ${statusBadgeClass}`}>
@@ -1062,31 +1087,33 @@ export const DatabaseView: React.FC<DatabaseViewProps> = ({
                     </div>
 
                     {/* Actions */}
-                    <div className="flex gap-2">
-                      <button 
-                        onClick={() => {
-                          onEditClaim(claim);
-                          onNavigate('assistent');
-                        }} 
-                        className="p-2 rounded hover:bg-white/5 text-gray-400 hover:text-white transition-all"
-                        style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}
-                        title="Redigera detta claim"
-                      >
-                        <Edit size={14} />
-                      </button>
-                      <button 
-                        onClick={() => {
-                          if (confirm('Är du säker på att du vill ta bort detta claim?')) {
-                            onDeleteClaim(claim.id);
-                          }
-                        }} 
-                        className="p-2 rounded hover:bg-white/5 text-gray-400 hover:text-coral-400 transition-all"
-                        style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}
-                        title="Ta bort detta claim"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
+                    {isAdminMode && (
+                      <div className="flex gap-2">
+                        <button 
+                          onClick={() => {
+                            onEditClaim(claim);
+                            onNavigate('metod');
+                          }} 
+                          className="p-2 rounded hover:bg-[var(--border-color)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-all"
+                          style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}
+                          title="Redigera detta claim"
+                        >
+                          <Edit size={14} />
+                        </button>
+                        <button 
+                          onClick={() => {
+                            if (confirm('Är du säker på att du vill ta bort detta claim?')) {
+                              onDeleteClaim(claim.id);
+                            }
+                          }} 
+                          className="p-2 rounded hover:bg-red-50 text-[var(--text-muted)] hover:text-[var(--accent-coral)] transition-all"
+                          style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}
+                          title="Ta bort detta claim"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   {/* Primary Dimension Heading */}
@@ -1203,7 +1230,7 @@ export const DatabaseView: React.FC<DatabaseViewProps> = ({
 
                   {/* Optional analytical comment */}
                   {claim.comment && (
-                    <div style={{ marginTop: '16px', fontSize: '0.82rem', color: 'var(--text-secondary)', padding: '16px', borderRadius: '12px', background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.04)' }}>
+                    <div style={{ marginTop: '16px', fontSize: '0.82rem', color: 'var(--text-secondary)', padding: '16px', borderRadius: '12px', background: 'rgba(15, 23, 42, 0.01)', border: '1px solid var(--border-color)' }}>
                       <span style={{ fontWeight: 800, color: 'var(--text-primary)' }}>Analyskommentar: </span>
                       {claim.comment}
                     </div>

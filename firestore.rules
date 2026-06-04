@@ -1,0 +1,9 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /feedback/{document} {
+      allow create: if true; // Open feedback submission
+      allow read, update, delete: if true; // Open access for admin; in prod, lock this to authenticated admins
+    }
+  }
+}

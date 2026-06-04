@@ -13,8 +13,10 @@
   "dependencies": {
     "@google-cloud/storage": "^7.14.0",
     "lucide-react": "^1.17.0",
+    "puppeteer": "^25.1.0",
     "react": "^19.2.6",
-    "react-dom": "^19.2.6"
+    "react-dom": "^19.2.6",
+    "rss-parser": "^3.13.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

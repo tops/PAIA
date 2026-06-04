@@ -101,7 +101,7 @@ För att aggregera enskilda påståenden till övergripande partiprofiler använ
 ### A. Beräkning av Anspråkets Totalvikt (Claim Weight)
 Varje påstående tilldelas en matematisk vikt baserat på följande formel:
 
-$$\text{Totalvikt} = \text{Policygrad-faktor} \times \text{Källvikt} \times \text{Partibärings-faktor} \times \text{Evidens-faktor} \times \text{Gransknings-faktor}$$
+$$\text{Totalvikt} = \text{Policygrad-faktor} \times \text{Källvikt} \times \text{Partibärings-faktor} \times \text{Evidens-faktor} \times \text{Gransknings-faktor} \times \text{Tidsavtrappning-faktor}$$
 
 #### 1. Policygrad-faktor (`policyDegree`)
 Mäter hur konkret eller skarpt förslaget är:
@@ -129,35 +129,44 @@ Baseras på påståendets underbyggda styrka (skala 1–5):
 
 #### 5. Gransknings-faktor (`reviewStatus`)
 Mäter i vilket skede av granskningsprocessen påståendet befinner sig:
-* **Ny (Ogranskad):** Faktor = `0.5` (används som en säkerhetsmarginal för automatiskt inhämtade claims).
-* **Granskad:** Faktor = `0.8` (verifierad text och korrekta metadata).
-* **Kalibrerad / Låst:** Faktor = `1.0` (officiella tunga policydokument med full kvalitetssäkring).
+* **Ny (Ogranskad):** Faktor = `0.5`
+* **Granskad:** Faktor = `0.8`
+* **Kalibrerad / Låst:** Faktor = `1.0`
+
+#### 6. Tidsavtrappning-faktor (`recencyFactor`)
+Gamla ställningstaganden tonas ned gradvis för att representera partiets nuvarande linje.
+* Formel: $\text{recencyFactor} = \max(0.3, 1 - (2026 - \text{utspelsår}) \times 0.15)$
 
 ---
 
-### B. Partiets Positioneringsstatus
-Beroende på antal claims och deras sammanlagda vikt klassificeras partiets ställningstagande inom en dimension enligt följande trappa:
-
-1. **Ingen bedömning:** Färre än 2 claims eller en sammanlagd totalvikt under `0.5`.
-2. **Indikation:** Minst 2 claims registrerade.
-3. **Preliminär position:** Minst 3 claims samt förekomst av hög källvikt eller hög partibäring.
-4. **Fast position:** Minst 3 claims från officiella källor, hög partibäring/källvikt, spridda över minst två olika datum (visar kontinuitet över tid).
-5. **Stark position:** Minst 5 claims, officiell källa, hög partibäring, hög konkretiseringsgrad samt minst 2 skarpa förslag på högsta policynivå (nivå 3).
+### B. Skydd mot systemmanipulation (Deduplicering)
+För att förhindra "fusk" genom upprepade likadana riksdagsmotioner kör systemet en grupperingsalgoritm i beräkningsmotorn:
+1. Claims från samma parti och inom samma dimension som har ett tidsavstånd på högst **30 dagar** och delar minst **2 gemensamma taggar** betraktas som överlappande.
+2. Dessa claims sammanförs i en klustergrupp.
+3. Det påstående i gruppen som har högst basvikt behåller sin fulla vikt (100 %). Alla andra claims i gruppen dämpas med en faktor **0.25** (75 % reduktion).
 
 ---
 
-### C. Politiska Axlar (Index 0–5)
-När alla Spår A-claims har viktats beräknas partiernas genomsnittliga position på tre ideologiska huvudaxlar:
+### C. Partiets Positioneringsstatus
+Beroende på antal claims och deras sammanlagda vikt klassificeras partiets ställningstagande inom en dimension. 
+* **Tuffare krav för Stark Position:** För att nå ställningen "Stark position" krävs att partiet har minst 5 claims, officiell källa, hög partibäring, hög konkretiseringsgrad, samt att minst **50 %** av bidragen är officiella/tunga claims (`partyBearing === 'Hög'` eller `sourceWeight >= 4`), vilket eliminerar spam-motioner från enskilda ledamöter.
 
-1. **Marknadsacceleration (Acceleration):** Driver partiet på för snabbare AI-användning, avregleringar, innovationsstöd och kommersialisering?
-2. **Skydd & Reglering (Protection):** Fokuserar partiet på integritetsskydd, etiska regler, riskminimering, tillsyn och efterlevnad av AI Act?
-3. **Statlig Styrning (Governance):** Vill partiet ha centralt samordnad offentlig infrastruktur, statliga investeringar och myndighetsstyrning?
+---
 
-Varje enskilt claim har förkodade bidrag (0-5) på dessa tre axlar. Partiets slutgiltiga index beräknas som ett **viktat genomsnitt** av alla dess claims:
+### D. Politiska Axlar och Dimensionell opposition (Motpoler)
+Partiets positioner (0–5) på de tre ideologiska huvudaxlarna (*Acceleration*, *Protection*, *Governance*) beräknas som ett viktat genomsnitt av alla partiers claims:
 
 $$\text{Slutgiltigt Index} = \frac{\sum (\text{Bidrag} \times \text{Totalvikt})}{\sum \text{Totalvikt}}$$
 
-Detta ger partierna en placering mellan 0 och 5 på respektive axel.
+#### Uträkning av dimensionella motpoler:
+Systemet aggregerar de ideologiska axlarna specifikt per dimension. För varje dimension $d$ beräknas det tredimensionella avståndet (euklidiskt avstånd) mellan partiernas medelpositioner:
+
+$$\text{Avstånd}(A, B) = \sqrt{(Acc_A - Acc_B)^2 + (Prot_A - Prot_B)^2 + (Gov_A - Gov_B)^2}$$
+
+Det par av partier som har störst avvikelse (avstånd $\ge 0.5$) flaggas i gränssnittet som "Motpoler" för den specifika dimensionen, och den mest polariserade axeln visas.
+
+#### Detektering av linjebyten:
+Systemet sparar partiers historiska profiler (claims äldre än 2024-01-01) separat och jämför dem med de nya profilerna. Om skillnaden på någon axel är $\ge 1.0$ poäng, flaggar gränssnittet ett linjebyte.
 
 ---
 
@@ -165,15 +174,11 @@ Detta ger partierna en placering mellan 0 och 5 på respektive axel.
 
 Systemet jämför partiernas aktivitet mot det externa trycket från civilsamhälle, myndigheter och experter för att identifiera "politiska gap" per dimension.
 
-* **Agendatryck (Agenda Pressure):** Beräknas dynamiskt baserat på antalet externa claims i en dimension och aktörernas tyngd (lobbygrupper som SKR/Almega eller myndigheter ger högre agendatryck).
-* **Partirespons (Party Response):** Beräknas baserat på partiernas samlade volym och konkretiseringsgrad av claims i samma dimension.
-
-Genom att ställa agendatryck mot partirespons drar systemet följande slutsatser:
-* **Blind fläck:** Lågt agendatryck och ingen/låg respons från partierna.
-* **Tyst valfråga med möjlig sprängkraft:** Högt externt agendatryck men partierna är passiva eller tysta.
-* **Underutvecklad partipolitik:** Medelhögt agendatryck men partiernas svar är svaga eller saknar konkretisering.
-* **Etablerad politisk fråga:** Både agendatryck och partiernas respons är hög.
-* **Överrepresenterad partidebatt:** Partierna debatterar frågan flitigt trots att det yttre trycket eller expertbehovet är lågt.
+* **Agendatryck (Agenda Pressure):** Beräknas dynamiskt. Externa aktörer som **Fackförbund** och **Civilsamhällesorganisationer** är klassificerade som tunga intressegrupper (`hasHeavyActor = true`) jämställda med *Almega Techföretagen*, *SKR* och statliga myndigheter för att balansera debattbevakningen.
+* **Relativt fokus per dimension (Profilering):** För att motverka snedvridning där regeringspartier (särskilt Moderaterna, M) dominerar alla områden på grund av en avsevärt mycket större mängd formella handlingar i databasen, använder systemet relativ prioritering (relativt fokus) för att bestämma vilket parti som är "mest profilerat" i respektive dimension.
+  * **Formel:**
+    $$F_{parti, dim} = \frac{W_{parti, dim}}{W_{parti}}$$
+    där $W_{parti}$ är partiets totala claim-vikt över alla 12 dimensioner, och $W_{parti, dim}$ är partiets sammanlagda claim-vikt inom den enskilda dimensionen (efter deduplicering). Den som har högst $F_{parti, dim}$ utses till det mest profilerade partiet i dimensionen, vilket korrekt speglar hur partiet väljer att fördela sina egna resurser i sin digitala agenda.
 
 ---
 
@@ -182,11 +187,16 @@ Genom att ställa agendatryck mot partirespons drar systemet följande slutsatse
 För att garantera dataintegritet och förhindra att felaktig eller partisk data smyger in i systemet, genomgår databasen en tvåstegsprocess:
 
 ### 1. Automatiserad QA-Monitor (`quality_assurance.cjs`)
-Ett node-skript körs regelbundet mot databasen för att upptäcka anomalier:
-* **Partitillhörighets-kontroll:** Matchar aktörsnamn mot kända mönster (t.ex. om texten innehåller "Ebba Busch" korrigeras partitillhörigheten automatiskt till KD om den råkat bli fel).
-* **Aktörstyp-justering:** Kontrollerar att ministrar och regeringsdokument klassificeras som `Regering` eller `Minister` istället för enskild ledamot.
-* **Semantisk dimensionskorrigering:** Skriptet läser citatens ordval (t.ex. ordet "cyber" eller "totalförsvar" tvingar fram dimension 9, medan "skola" eller "kompetens" styr till dimension 6) för att minimera felaktig kategorisering under insamlingen.
-* **Gränsvärdes-validering:** Säkerställer att alla poäng och vikter ligger inom sina tillåtna intervall.
+Ett node-skript körs regelbundet mot databasen för att upptäcka anomalier.
 
 ### 2. Manuell Granskning och Kalibrering
-Innan claims betraktas som fullvärdiga (`Granskad` eller `Kalibrerad`) och får full vikt (faktor 0.8 eller 1.0) granskas de manuellt av en administratör i systemets editor. Här kan citat verifieras mot den länkade källan och missvisande tolkningar korrigeras.
+Granskning av citat och källor utförs manuellt innan status uppgraderas till `Granskad` eller `Kalibrerad`.
+
+---
+
+## 7. Metodologiska begränsningar och källkritik
+
+* **Fokuspoäng vs Ståndpunkt:** Dimensionspoängen (0-5) mäter *policy-konkretionsgrad* (detaljnivå i förslag), inte om partiet har en positiv eller negativ moralisk grundsyn på ämnet.
+* **Falsk exakthet:** Indexvärden är aggregeringar av redaktionella bedömningar och ska ses som kvalitativa kompassriktningar, inte fysikaliska mätningar.
+* **Sökordsselektion:** Systemet kan missa breda strukturreformer (t.ex. energiförsörjning) som inte innehåller sökord som "AI" eller "algoritmer", vilket kompenseras genom manuella kompletteringar av databasen.
+* **Mängdbias (Regeringspartier vs Opposition):** Eftersom regeringspartier naturligt genererar en större volym officiella handlingar, normaliserar systemet dimensionsprofileringen genom att mäta **relativt fokus** (dimensionens andel av partiets egna totala claim-vikt) snarare än absolut volym för att ge en balanserad bild av partiernas faktiska profileringar.

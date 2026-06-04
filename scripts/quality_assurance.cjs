@@ -50,13 +50,53 @@ const updatedClaims = claims.map(c => {
     correctedParty++;
   }
 
-  // 2. Actor Type alignment
+  // 2. Actor Type and Government alignment based on dates
   let originalActorType = c.actorType;
-  if (c.actor.includes('Regeringen') || c.actor.includes('Kristersson') || c.actor.includes('Löfven') || c.actor.includes('Svanberg') || c.actor.includes('Rosencrantz')) {
-    if (c.actorType === 'Enskild riksdagsledamot') {
-      c.actorType = 'Regering';
-      correctedActorType++;
+  const dateVal = c.date || '';
+  const isGov = c.actorType === 'Regering' || 
+                (c.actor && (c.actor.startsWith('Regeringen') || c.actor.includes('Kristersson') || c.actor.includes('Löfven') || c.actor.includes('Andersson'))) ||
+                (c.sourceType && ['Regeringsbeslut', 'Strategi'].includes(c.sourceType));
+                
+  if (isGov) {
+    c.actorType = 'Regering';
+    let expectedActor = 'Regeringen Kristersson';
+    let expectedParty = 'M';
+    
+    if (dateVal < '2021-11-30') {
+      expectedActor = 'Regeringen Löfven';
+      expectedParty = 'S';
+    } else if (dateVal < '2022-10-18') {
+      expectedActor = 'Regeringen Andersson';
+      expectedParty = 'S';
     }
+    
+    if (c.actor !== expectedActor) {
+      c.actor = expectedActor;
+      c.neutralSummary = c.neutralSummary
+        .replace(/Regeringen Kristersson/gi, expectedActor)
+        .replace(/Regeringen Löfven/gi, expectedActor)
+        .replace(/Regeringen Andersson/gi, expectedActor);
+    }
+    
+    if (c.partyAffiliation !== expectedParty) {
+      c.partyAffiliation = expectedParty;
+      correctedParty++;
+    }
+    
+    // Enforce correct policy direction contributions based on the party
+    if (expectedParty === 'S') {
+      c.accelerationContribution = 1;
+      c.protectionContribution = 4;
+      c.stateGovernanceContribution = 4;
+    } else if (expectedParty === 'M') {
+      c.accelerationContribution = 4;
+      c.protectionContribution = 1;
+      c.stateGovernanceContribution = 2;
+    }
+  }
+
+  if (originalActorType !== c.actorType) {
+    correctedActorType++;
   }
 
   // 3. Dimension corrections based on semantic tags and content

@@ -61,20 +61,23 @@ Promise.all([
     let sourceType = 'Motion';
 
     // Source Type Mapping
-    if (doktyp === 'prop') {
-      sourceType = 'Regeringsbeslut';
+    if (doktyp === 'prop' || doktyp === 'skr') {
+      sourceType = doktyp === 'prop' ? 'Regeringsbeslut' : 'Strategi';
       sourceWeight = 5;
-      actor = 'Regeringen Kristersson';
       actorType = 'Regering';
-      party = 'M'; // Attribute to coalition leader (M) by default
       partyBearing = 'Hög';
-    } else if (doktyp === 'skr') {
-      sourceType = 'Strategi';
-      sourceWeight = 5;
-      actor = 'Regeringen Kristersson';
-      actorType = 'Regering';
-      party = 'M';
-      partyBearing = 'Hög';
+
+      const docDate = doc.datum || '';
+      if (docDate < '2021-11-30') {
+        actor = 'Regeringen Löfven';
+        party = 'S';
+      } else if (docDate < '2022-10-18') {
+        actor = 'Regeringen Andersson';
+        party = 'S';
+      } else {
+        actor = 'Regeringen Kristersson';
+        party = 'M';
+      }
     } else if (doktyp === 'bet') {
       sourceType = 'Strategi';
       sourceWeight = 4;

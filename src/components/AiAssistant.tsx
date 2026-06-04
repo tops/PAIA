@@ -8,6 +8,7 @@ interface AiAssistantProps {
   onSaveClaim: (claim: ClaimCard) => void;
   onCancelEdit: () => void;
   onNavigate: (tab: string) => void;
+  isAdminMode?: boolean;
 }
 
 const emptyClaimTemplate = (): ClaimCard => ({
@@ -46,7 +47,8 @@ export const AiAssistant: React.FC<AiAssistantProps> = ({
   editingClaim,
   onSaveClaim,
   onCancelEdit,
-  onNavigate
+  onNavigate,
+  isAdminMode = false
 }) => {
   const [claim, setClaim] = useState<ClaimCard>(() => editingClaim || emptyClaimTemplate());
   const [inputText, setInputText] = useState('');
@@ -255,15 +257,25 @@ export const AiAssistant: React.FC<AiAssistantProps> = ({
       <div className="page-header">
         <div className="page-header-info">
           <h1 className="page-title">
-            {editingClaim ? 'Redigera Claim-kort' : 'AI-assistent & Claim-Editor'}
+            {editingClaim ? 'Redigera ställningstagande' : 'Testa AI-analysatorn (AI-Lab)'}
           </h1>
           <p className="page-subtitle">
             {editingClaim 
-              ? 'Justera värden och klassificeringar för det befintliga uttalandet.' 
-              : 'Klistra in ny politisk text för automatisk klassificering, eller fyll i ett nytt claim-kort manuellt.'
+              ? 'Justera värden och klassificeringar för det valda ställningstagandet.' 
+              : 'Vill du se hur vår AI arbetar? Klistra in en politisk text (t.ex. en debattartikel eller motion) så tolkar AI-assistenten ämnesområde och indexvärden direkt.'
             }
           </p>
         </div>
+      </div>
+
+      {/* AI Lab Warning Box */}
+      <div className="glass-panel" style={{ padding: '20px', borderLeft: '4px solid var(--accent-coral)', display: 'flex', flexDirection: 'column', gap: '8px', background: 'rgba(239, 68, 68, 0.02)', borderRadius: '16px' }}>
+        <span style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--accent-coral)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+          Experimentellt AI-Lab
+        </span>
+        <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', lineHeight: '1.5', margin: 0 }}>
+          Denna sida är en interaktiv sandlåda för att demonstrera hur vår AI-kodning fungerar. När du klistrar in en text försöker en lokal algoritm gissa dimensioner, partitillhörighet och betyg baserat på nyckelord. Det är en ren automatisk tolkning som kan innehålla grova felaktigheter och tolkas bokstavligt. I produktion granskas och kalibreras alla sådana tolkningar alltid manuellt av en mänsklig analytiker innan de sparas i det officiella källbiblioteket.
+        </p>
       </div>
 
       {/* AI Classifier Box (only visible when not editing existing) */}
@@ -271,10 +283,10 @@ export const AiAssistant: React.FC<AiAssistantProps> = ({
         <div className="glass-panel ai-box flex flex-col gap-4">
           <div className="flex items-center gap-3">
             <Sparkles className="text-purple-400 ai-glow" size={20} />
-            <h2 style={{ fontSize: '1.25rem', fontWeight: 800 }}>AI-snabbklassificering (v3)</h2>
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 800 }}>Testa AI-analys i realtid</h2>
           </div>
           <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '8px' }}>
-            Klistra in ett svenskt politiskt citat, utskottsinitiativ eller pressmeddelande nedan. Vår lokala AI-assistent kommer att tolka dimensioner, aktörstyper och indexpoäng direkt.
+            Klistra in ett svenskt politiskt uttalande, debattinlägg eller pressmeddelande nedan. Vårt system kommer automatiskt att analysera texten och föreslå klassificering och betyg.
           </p>
 
           <textarea
@@ -311,10 +323,10 @@ export const AiAssistant: React.FC<AiAssistantProps> = ({
 
       {/* Form Container */}
       <form onSubmit={handleSubmit} className="glass-panel editor-form flex flex-col gap-8">
-        <div className="flex justify-between items-center pb-4" style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
+        <div className="flex justify-between items-center pb-4" style={{ borderBottom: '1px solid var(--border-color)' }}>
           <h2 style={{ fontSize: '1.35rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '10px' }}>
             <Save className="text-teal-400" size={22} />
-            Claim-kort Detaljer (v3)
+            Klassificering & Analysvärden
           </h2>
           {editingClaim && (
             <button 
@@ -331,7 +343,7 @@ export const AiAssistant: React.FC<AiAssistantProps> = ({
         {/* Section 1: Basinformation */}
         <div>
           <h3 className="form-section-title">
-            1. Basinformation
+            1. Källinformation & Bakgrund
           </h3>
           
           <div className="form-grid-3">
@@ -344,7 +356,7 @@ export const AiAssistant: React.FC<AiAssistantProps> = ({
                 value={claim.id}
                 onChange={(e) => handleFieldChange('id', e.target.value)}
                 className="form-control"
-                style={{ backgroundColor: 'rgba(255,255,255,0.02)', color: 'var(--text-muted)', cursor: 'not-allowed' }}
+                 style={{ backgroundColor: 'rgba(15, 23, 42, 0.03)', color: 'var(--text-muted)', cursor: 'not-allowed' }}
                 disabled // Keep readonly
               />
             </div>
@@ -537,7 +549,7 @@ export const AiAssistant: React.FC<AiAssistantProps> = ({
         {/* Section 3: Relevans, Flaggor & Dimensioner */}
         <div>
           <h3 className="form-section-title">
-            3. AI-Politisk Relevans & Dimensioner
+            3. Policy-relevans & Ämnesområde
           </h3>
 
           <div className="form-grid-3">
@@ -612,8 +624,8 @@ export const AiAssistant: React.FC<AiAssistantProps> = ({
                     claim.primaryDimension === d.id ? 'opacity-30 cursor-not-allowed' : ''
                   }`}
                   style={{
-                    backgroundColor: claim.secondaryDimensions.includes(d.id) ? 'rgba(0,230,207,0.04)' : 'rgba(255,255,255,0.01)',
-                    borderColor: claim.secondaryDimensions.includes(d.id) ? 'var(--accent-teal)' : 'rgba(255,255,255,0.04)',
+                    backgroundColor: claim.secondaryDimensions.includes(d.id) ? 'rgba(13, 148, 136, 0.08)' : 'var(--bg-main)',
+                    borderColor: claim.secondaryDimensions.includes(d.id) ? 'var(--accent-teal)' : 'var(--border-color)',
                     color: claim.secondaryDimensions.includes(d.id) ? 'var(--text-primary)' : 'var(--text-secondary)',
                     fontWeight: 600
                   }}
@@ -634,7 +646,7 @@ export const AiAssistant: React.FC<AiAssistantProps> = ({
         {/* Section 4: Indexbidrag & Kvalitetsmått */}
         <div>
           <h3 className="form-section-title">
-            4. Indexbidrag & Bedömningsvärden (v3)
+            4. Ideologiska poäng & Kvalitetssäkring
           </h3>
 
           <div className="form-grid-3">
@@ -797,26 +809,34 @@ export const AiAssistant: React.FC<AiAssistantProps> = ({
           <div className="flex gap-2 p-4 bg-coral-500/10 border border-coral-500/20 text-coral-400 rounded-xl text-xs items-start" style={{ lineHeight: '1.6' }}>
             <AlertTriangle className="flex-shrink-0" size={16} style={{ marginTop: '2px' }} />
             <div>
-              <span className="font-bold" style={{ fontSize: '0.82rem' }}>Observera:</span> Detta claim har status &rdquo;Ny&rdquo;, vilket innebär att det väger hälften så mycket (faktor 0.5) i partipoängens sammanställning tills det har markerats som &rdquo;Granskad&rdquo; eller högre.
+              <span className="font-bold" style={{ fontSize: '0.82rem' }}>Observera:</span> Detta uttalande har status &rdquo;Ny&rdquo;, vilket innebär att det väger hälften så mycket (faktor 0.5) i partiprofilernas sammanställning tills det har granskats manuellt och markerats som &rdquo;Granskad&rdquo; eller högre.
             </div>
           </div>
         )}
 
         {/* Form Actions */}
-        <div className="flex justify-end gap-3 pt-4" style={{ borderTop: '1px solid rgba(255, 255, 255, 0.05)' }}>
-          <button
-            type="button"
-            onClick={onCancelEdit}
-            className="btn btn-secondary"
-          >
-            Nollställ
-          </button>
-          <button
-            type="submit"
-            className="btn btn-primary"
-          >
-            Spara Claim till Databas
-          </button>
+        <div className="flex justify-end gap-3 pt-4 items-center flex-wrap" style={{ borderTop: '1px solid var(--border-color)', width: '100%' }}>
+          {!isAdminMode ? (
+            <div className="flex gap-2 p-3 bg-[rgba(13,148,136,0.05)] border border-[rgba(13,148,136,0.15)] text-[var(--text-secondary)] rounded-xl text-xs items-center justify-between w-full">
+              <span className="flex items-center gap-2"><Info size={14} style={{ color: 'var(--accent-teal)' }} /> Endast inloggade administratörer kan spara eller ändra claims i databasen.</span>
+            </div>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={onCancelEdit}
+                className="btn btn-secondary"
+              >
+                Nollställ
+              </button>
+              <button
+                type="submit"
+                className="btn btn-primary"
+              >
+                Spara Claim till Databas
+              </button>
+            </>
+          )}
         </div>
       </form>
     </div>
